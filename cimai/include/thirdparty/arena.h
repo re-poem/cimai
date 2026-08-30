@@ -44,6 +44,10 @@
 #define ARENA_BACKEND ARENA_BACKEND_LIBC_MALLOC
 #endif // ARENA_BACKEND
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef struct Region Region;
 
 struct Region
@@ -51,7 +55,7 @@ struct Region
 	Region *next;
 	size_t count;
 	size_t capacity;
-	uintptr_t data[];
+	uintptr_t data[1];
 };
 
 typedef struct
@@ -143,6 +147,10 @@ void arena_trim(Arena *a);
 // Append a single NULL character at the end of a string builder. So then you can
 // use it a NULL-terminated C string
 #define arena_sb_append_null(a, sb) arena_da_append(a, sb, 0)
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif // ARENA_H_
 

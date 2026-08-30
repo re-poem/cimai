@@ -28,6 +28,10 @@
 #include <string.h>
 #include <ctype.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #ifndef SVDEF
 #define SVDEF
 #endif // SVDEF
@@ -77,6 +81,10 @@ uint64_t sv_chop_u64(String_View *sv);
 // extension
 SVDEF bool sv_try_parse_uint8(String_View sv, uint8_t *out);
 SVDEF bool sv_try_parse_float(String_View sv, float *out);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif  // SV_H_
 
