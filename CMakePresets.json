@@ -3,11 +3,11 @@
   "configurePresets": [
     {
       "name": "windows",
+      "displayName": "Windows x64",
       "generator": "Visual Studio 18 2026",
       "binaryDir": "${sourceDir}/out/build/${presetName}",
       "installDir": "${sourceDir}/out/install/${presetName}",
       "cacheVariables": {
-        "CMAKE_C_COMPILER": "cl.exe",
         "CMAKE_C_STANDARD": "23",
         "CMAKE_C_STANDARD_REQUIRED": "ON",
         "CMAKE_C_EXTENSIONS": "OFF"

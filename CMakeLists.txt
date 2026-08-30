@@ -1,6 +1,4 @@
 # CMakeList.txt: 顶层 CMake 项目文件，在此处执行全局配置
-# 并包含子项目。
-#
 cmake_minimum_required(VERSION 3.12)
 
 # 如果支持，请为 MSVC 编译器启用热重载。
@@ -17,5 +15,12 @@ project("cimai"
   VERSION 0.0.1
 )
 
-# 包含子项目。
-add_subdirectory("cimai")
+add_library (cimai 
+	"src/misc/thirdparty_impl.c"
+	"src/meta_parser.c"
+	"src/chart_parser.c"
+	"src/parser.c"
+)
+target_include_directories(cimai
+    PUBLIC "include"
+)

@@ -163,7 +163,143 @@ static int parse_settings(String_View *text, Context *ctx)
 
 
 
+static int parse_duration(
+	String_View content, const int hash_count, const Context ctx,
+	double *duration, double *shoot_delay)
+{
+	switch (hash_count)
+	{
+	case 0: // [8:1]
+	{
+		String_View div_sv;
+		if (!sv_try_chop_by_delim(&content, ':', &div_sv))
+			return 0;
 
+		float div, beats;
+		if (!parse_float_trimmed(div_sv, &div) ||
+			!parse_float_trimmed(content, &beats))
+			return 0;
+
+		*duration = 60 / ctx.bpm * 4 / div * beats;
+		*shoot_delay = 60 / ctx.bpm * 4 / ctx.sign_den;
+		break;
+	}
+	case 1: // [180#8:1] [180#0.2]   [#0.2]<-(hold only but it is also compatible with slide)
+	{
+		String_View bpm_sv;
+		if (!sv_try_chop_by_delim(&content, '#', &bpm_sv))
+			return 0;
+
+		bool is_hold_absolute_duration = bpm_sv.count == 0;
+
+		float bpm = 0;
+		if (!is_hold_absolute_duration &&
+			!parse_float_trimmed(bpm_sv, &bpm))
+			return 0;
+
+
+		String_View div_sv;
+		if (!is_hold_absolute_duration &&
+			sv_try_chop_by_delim(&content, ':', &div_sv))
+		{
+			float div, beats;
+			if (!parse_float_trimmed(div_sv, &div) ||
+				!parse_float_trimmed(content, &beats))
+				return 0;
+
+			*duration = 60 / bpm * 4 / div * beats;
+			*shoot_delay = 60 / bpm * 4 / ctx.sign_den;
+		}
+		else
+		{
+			float absolute_duration;
+			if (!parse_float_trimmed(content, &absolute_duration))
+				return 0;
+
+			*duration = absolute_duration;
+			*shoot_delay = 60 / (is_hold_absolute_duration ? ctx.bpm : bpm) * 4 / ctx.sign_den;
+		}
+		break;
+	}
+	case 2: // [0.2##8:1] [0.2##0.2]
+	{
+		String_View absolute_delay_sv;
+		if (!sv_try_chop_by_delim(&content, '#', &absolute_delay_sv))
+			return 0;
+		if (content.data[0] != '#')
+			return 0;
+
+		float absolute_delay;
+		if (!parse_float_trimmed(absolute_delay_sv, &absolute_delay))
+			return 0;
+
+		sv_chop_left(&content, 1);
+
+
+		String_View div_sv;
+		if (sv_try_chop_by_delim(&content, ':', &div_sv))
+		{
+			float div, beats;
+			if (!parse_float_trimmed(div_sv, &div) ||
+				!parse_float_trimmed(content, &beats))
+				return 0;
+
+			*duration = 60 / ctx.bpm * 4 / div * beats;
+			*shoot_delay = absolute_delay;
+		}
+		else
+		{
+			float absolute_duration;
+			if (!parse_float_trimmed(content, &absolute_duration))
+				return 0;
+
+			*duration = absolute_duration;
+			*shoot_delay = absolute_delay;
+		}
+		break;
+	}
+	case 3: // [0.2##180#8:1]
+	{
+		String_View absolute_delay_sv;
+		if (!sv_try_chop_by_delim(&content, '#', &absolute_delay_sv))
+			return 0;
+		if (content.data[0] != '#')
+			return 0;
+
+		float absolute_delay;
+		if (!parse_float_trimmed(absolute_delay_sv, &absolute_delay))
+			return 0;
+
+		sv_chop_left(&content, 1);
+
+
+		String_View bpm_sv;
+		if (!sv_try_chop_by_delim(&content, '#', &bpm_sv))
+			return 0;
+
+		float bpm;
+		if (!parse_float_trimmed(bpm_sv, &bpm))
+			return 0;
+
+
+		String_View div_sv;
+		if (!sv_try_chop_by_delim(&content, ':', &div_sv))
+			return 0;
+
+		float div, beats;
+		if (!parse_float_trimmed(div_sv, &div) ||
+			!parse_float_trimmed(content, &beats))
+			return 0;
+
+		*duration = 60 / bpm * 4 / div * beats;
+		*shoot_delay = absolute_delay;
+		break;
+	}
+	default:
+		return 0;
+	}
+	return 1;
+}
 // 解析两个逗号间所组成的一个timing，跳转到下一个timing开头（即下一个 , 或 ` 后）（遇到错误时恒跳转到下一个 , 防止越界访问）
 static ParseNoteRetCode parse_timing(
 	const Context ctx, String_View *text,
@@ -282,8 +418,8 @@ static ParseNoteRetCode parse_timing(
 			}
 
 			i++;
-			int start = i;
-			int end = -1;
+			size_t start = i;
+			size_t end = -1;
 			int hash_count = 0;
 			for (; i < text->count; i++)
 			{
@@ -451,143 +587,6 @@ static ParseNoteRetCode parse_timing(
 
 	sv_chop_by_delim(text, ',');
 	return CIMAI_NOTE_ERR_COMMA_NOT_FOUND;
-}
-static int parse_duration(
-	String_View content, const int hash_count, const Context ctx,
-	double *duration, double *shoot_delay)
-{
-	switch (hash_count)
-	{
-	case 0: // [8:1]
-	{
-		String_View div_sv;
-		if (!sv_try_chop_by_delim(&content, ':', &div_sv))
-			return 0;
-
-		float div, beats;
-		if (!parse_float_trimmed(div_sv, &div) ||
-			!parse_float_trimmed(content, &beats))
-			return 0;
-
-		*duration = 60 / ctx.bpm * 4 / div * beats;
-		*shoot_delay = 60 / ctx.bpm * 4 / ctx.sign_den;
-		break;
-	}
-	case 1: // [180#8:1] [180#0.2]   [#0.2]<-(hold only but it is also compatible with slide)
-	{
-		String_View bpm_sv;
-		if (!sv_try_chop_by_delim(&content, '#', &bpm_sv))
-			return 0;
-
-		bool is_hold_absolute_duration = bpm_sv.count == 0;
-
-		float bpm = 0;
-		if (!is_hold_absolute_duration &&
-			!parse_float_trimmed(bpm_sv, &bpm))
-			return 0;
-
-
-		String_View div_sv;
-		if (!is_hold_absolute_duration &&
-			sv_try_chop_by_delim(&content, ':', &div_sv))
-		{
-			float div, beats;
-			if (!parse_float_trimmed(div_sv, &div) ||
-				!parse_float_trimmed(content, &beats))
-				return 0;
-
-			*duration = 60 / bpm * 4 / div * beats;
-			*shoot_delay = 60 / bpm * 4 / ctx.sign_den;
-		}
-		else
-		{
-			float absolute_duration;
-			if (!parse_float_trimmed(content, &absolute_duration))
-				return 0;
-
-			*duration = absolute_duration;
-			*shoot_delay = 60 / (is_hold_absolute_duration ? ctx.bpm : bpm) * 4 / ctx.sign_den;
-		}
-		break;
-	}
-	case 2: // [0.2##8:1] [0.2##0.2]
-	{
-		String_View absolute_delay_sv;
-		if (!sv_try_chop_by_delim(&content, '#', &absolute_delay_sv))
-			return 0;
-		if (content.data[0] != '#')
-			return 0;
-
-		float absolute_delay;
-		if (!parse_float_trimmed(absolute_delay_sv, &absolute_delay))
-			return 0;
-
-		sv_chop_left(&content, 1);
-
-
-		String_View div_sv;
-		if (sv_try_chop_by_delim(&content, ':', &div_sv))
-		{
-			float div, beats;
-			if (!parse_float_trimmed(div_sv, &div) ||
-				!parse_float_trimmed(content, &beats))
-				return 0;
-
-			*duration = 60 / ctx.bpm * 4 / div * beats;
-			*shoot_delay = absolute_delay;
-		}
-		else
-		{
-			float absolute_duration;
-			if (!parse_float_trimmed(content, &absolute_duration))
-				return 0;
-
-			*duration = absolute_duration;
-			*shoot_delay = absolute_delay;
-		}
-		break;
-	}
-	case 3: // [0.2##180#8:1]
-	{
-		String_View absolute_delay_sv;
-		if (!sv_try_chop_by_delim(&content, '#', &absolute_delay_sv))
-			return 0;
-		if (content.data[0] != '#')
-			return 0;
-
-		float absolute_delay;
-		if (!parse_float_trimmed(absolute_delay_sv, &absolute_delay))
-			return 0;
-
-		sv_chop_left(&content, 1);
-
-
-		String_View bpm_sv;
-		if (!sv_try_chop_by_delim(&content, '#', &bpm_sv))
-			return 0;
-
-		float bpm;
-		if (!parse_float_trimmed(bpm_sv, &bpm))
-			return 0;
-
-
-		String_View div_sv;
-		if (!sv_try_chop_by_delim(&content, ':', &div_sv))
-			return 0;
-
-		float div, beats;
-		if (!parse_float_trimmed(div_sv, &div) ||
-			!parse_float_trimmed(content, &beats))
-			return 0;
-
-		*duration = 60 / bpm * 4 / div * beats;
-		*shoot_delay = absolute_delay;
-		break;
-	}
-	default:
-		return 0;
-	}
-	return 1;
 }
 
 
