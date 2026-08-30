@@ -134,6 +134,8 @@ static int parse_beats(String_View *text, Context *ctx)
 }
 static int parse_settings(String_View *text, Context *ctx)
 {
+	sv_chop_left(text, 1); // 跳过 '<'
+
 	String_View pair;
 	if (!sv_try_chop_by_delim(text, '>', &pair))
 		return 0;
@@ -316,6 +318,20 @@ static ParseNoteRetCode parse_timing(
 	} while (0)
 
 
+	// 连写双押
+	if (text->count >= 3 &&
+		IS_NOTE_CHAR(text->data[0]) &&
+		IS_NOTE_CHAR(text->data[1]) &&
+		text->data[2] == ',')
+	{
+		SimaiNote a = { .type = TAP, .start_pos = text->data[0] - '0' };
+		SimaiNote b = { .type = TAP, .start_pos = text->data[1] - '0' };
+		da_append(notes, a);
+		da_append(notes, b);
+		sv_chop_left(text, 3); // 吃掉 "XY,"
+		return CIMAI_NOTE_SUCCESS;
+	}
+
 	SimaiNote note = { 0 };
 
 	size_t i = 0;
@@ -326,77 +342,6 @@ static ParseNoteRetCode parse_timing(
 	// 滑条路径暂存
 	char slide_content[SLIDE_CONTENT_MAX];
 	int slide_content_len = 0;
-
-	char first = text->data[0];
-
-	if (IS_NOTE_CHAR(first))
-	{
-		note.type = TAP;
-		note.start_pos = first - '0';
-		slide_content_add(slide_content, &slide_content_len, first);
-		is_touch_start = false;
-		i++;
-	}
-	else if (IS_TOUCH_AREA_CHAR(first))
-	{
-		note.touch_area = first;
-		if (first == 'C')
-		{
-			if (text->count > 1)
-			{
-				char second = text->data[1];
-				if (second == '1' || second == '2')
-					i += 2;
-				else
-					i++;
-			}
-			is_touch_start = true;
-			note.type = TOUCH;
-			note.start_pos = 1; // actually not used
-			slide_content_add(slide_content, &slide_content_len, first);
-		}
-		else
-		{
-			if (text->count > 1)
-			{
-				char second = text->data[1];
-				if (IS_NOTE_CHAR(second))
-				{
-					note.type = TOUCH;
-					note.start_pos = second - '0';
-					slide_content_add(slide_content, &slide_content_len, first);
-					slide_content_add(slide_content, &slide_content_len, second);
-					is_touch_start = true;
-					i += 2;
-				}
-				else
-					goto not_a_note;
-			}
-			else
-				goto not_a_note;
-		}
-	}
-	else
-	{
-	not_a_note:
-		sv_chop_by_delim(text, ',');
-		return CIMAI_NOTE_ERR_NOT_A_NOTE;
-	}
-
-	// 同拍双押：形如 "12," 的两个连续数字且第 3 个字符是逗号 → 同一拍两个 tap。
-	// （连写 tap 只支持逗号分隔，/ 或 ` 分隔的不算双押）
-	if (note.type == TAP && text->count >= 3 &&
-		IS_NOTE_CHAR(text->data[1]) && text->data[2] == ',')
-	{
-		SimaiNote second = {
-			.type = TAP,
-			.start_pos = text->data[1] - '0'
-		};
-		EMIT_NOTE; // 第一个 tap 入列
-		da_append(notes, second); // 第二个 tap
-		sv_chop_left(text, 3); // 吃掉 "XY,"
-		return CIMAI_NOTE_SUCCESS;
-	}
 
 	for (; i < text->count; i++)
 	{
@@ -451,7 +396,6 @@ static ParseNoteRetCode parse_timing(
 			// 应该没傻逼分段时间slide还乱指定启动拍。。
 			note.slide_shoot_delay = shoot_delay;
 
-			i++;
 			break;
 
 		case 'b':
@@ -503,12 +447,15 @@ static ParseNoteRetCode parse_timing(
 		case 's':
 		case 'z':
 		case 'w':
-			// 强制star的note依然强制，强制tap-head的依然tap-head，也就是说1$$@-4 == 1-4
-			note.is_star = is_tap_head_slide && !note.is_star ? false : true;
-			EMIT_NOTE;
+			if (note.type == TAP)
+			{
+				// 强制star的note依然强制，强制tap-head的依然tap-head，也就是说1$$@-4 == 1-4
+				note.is_star = is_tap_head_slide && !note.is_star ? false : true;
+				EMIT_NOTE; // 星星头
+				note.is_slide_no_star_fade = is_slide_no_star_fade;
+			}
 			note.type = SLIDE;
-			note.is_slide_no_star_fade = is_slide_no_star_fade;
-
+			// 已是 SLIDE 则继续累积路径；连结滑条整体是一条 SLIDE
 			slide_content_add(slide_content, &slide_content_len, text->data[i]);
 			break;
 
@@ -577,7 +524,43 @@ static ParseNoteRetCode parse_timing(
 			return CIMAI_NOTE_SUCCESS;
 
 		default:
-			if (IS_NOTE_CHAR(text->data[i]) || IS_TOUCH_AREA_CHAR(text->data[i]))
+			if (note.type == NONE &&
+				(IS_NOTE_CHAR(text->data[i]) || IS_TOUCH_AREA_CHAR(text->data[i])))
+			{
+				// 音符头
+				if (IS_NOTE_CHAR(text->data[i]))
+				{
+					note.type = TAP;
+					note.start_pos = text->data[i] - '0';
+					is_touch_start = false;
+					slide_content_add(slide_content, &slide_content_len, text->data[i]);
+				}
+				else if (text->data[i] == 'C')
+				{
+					note.touch_area = 'C';
+					note.type = TOUCH;
+					note.start_pos = 1; // actually not used
+					is_touch_start = true;
+					slide_content_add(slide_content, &slide_content_len, text->data[i]);
+					if (i + 1 < text->count && (text->data[i + 1] == '1' || text->data[i + 1] == '2'))
+						i++;
+				}
+				else if (i + 1 < text->count && IS_NOTE_CHAR(text->data[i + 1]))
+				{
+					note.touch_area = text->data[i];
+					note.type = TOUCH;
+					note.start_pos = text->data[i + 1] - '0';
+					is_touch_start = true;
+					slide_content_add(slide_content, &slide_content_len, text->data[i]);
+					slide_content_add(slide_content, &slide_content_len, text->data[i + 1]);
+					i++;
+				}
+				else
+				{
+					slide_content_add(slide_content, &slide_content_len, text->data[i]);
+				}
+			}
+			else if (IS_NOTE_CHAR(text->data[i]) || IS_TOUCH_AREA_CHAR(text->data[i]))
 			{
 				slide_content_add(slide_content, &slide_content_len, text->data[i]);
 			}
@@ -720,15 +703,27 @@ void cimai_parse_chart(SimaiChart *chart)
 							fake_count++;
 							da_append(timings, timing);
 						} while (ret == CIMAI_NOTE_FAKE_EACH);
+						ctx.time += ctx.seconds_per_beat;
 						break;
 					default:
 						break;
 					}
 				}
+				else if (c == ',')
+				{
+					// 空逗号
+					ctx.time += ctx.seconds_per_beat;
+					sv_chop_left(&text, 1);
+				}
+				else
+				{
+					// 未定义字符
+					sv_chop_left(&text, 1);
+				}
 			}
 			else
 			{
-				// 啥也不是，直接忽略
+				// bpm/beats 未定义，忽略
 				sv_chop_left(&text, 1);
 			}
 			break;
