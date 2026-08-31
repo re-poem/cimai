@@ -59,8 +59,13 @@ static int g_failures = 0;
 // 解析一个仅含谱面的字符串字面量（fumen 生命周期覆盖整个测试）
 static SimaiChart *parse_chart_cstr(const char *fumen)
 {
-	SimaiChart *c = (SimaiChart *)calloc(1, sizeof *c);
-	c->fumen = sv_from_parts(fumen, strlen(fumen));
+	SimaiChart *c = (SimaiChart *)calloc(1, sizeof * c);
+	String_View sv = {
+		.count = strlen(fumen),
+		.data = fumen
+	};
+
+	c->fumen = sv;
 	cimai_parse_chart(c);
 	return c;
 }
@@ -68,7 +73,7 @@ static SimaiChart *parse_chart_cstr(const char *fumen)
 // 解析完整 SimaiFile（metadata + 谱面），内部拷贝输入文本
 static SimaiFile *parse_file_cstr(const char *text)
 {
-	SimaiFile *f = (SimaiFile *)calloc(1, sizeof *f);
+	SimaiFile *f = (SimaiFile *)calloc(1, sizeof * f);
 	size_t len = strlen(text);
 	char *buf = (char *)malloc(len + 1);
 	memcpy(buf, text, len + 1);

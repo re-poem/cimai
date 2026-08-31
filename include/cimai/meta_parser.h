@@ -1,4 +1,5 @@
 #pragma once
+#include <cimai/export.h>
 #include <cimai/simai_types.h>
 #include <thirdparty/sv.h>
 
@@ -6,7 +7,7 @@
 extern "C" {
 #endif
 
-void cimai_parse_metadata(String_View *text, SimaiFile *file);
+	CIMAI_API void cimai_parse_metadata(String_View *text, SimaiFile *file);
 
 #ifdef __cplusplus
 }
