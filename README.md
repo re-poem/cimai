@@ -3,7 +3,7 @@
 ## 构建
 
 ```sh
-cmake --preset windows        # 生成 VS 工程（out/build/windows）
+cmake --preset win-x64        # 生成 VS 工程（out/build/windows）
 cmake --build out/build/windows --config Debug
 ```
 
@@ -42,3 +42,38 @@ SimaiChart *ch = file.charts[EASY];
 // ch->timings.items[i].time / .notes ...
 cimai_file_free(&file);           // 释放 charts 与命令表（charts 指针被置 NULL）
 ```
+
+## C# 绑定（ClangSharp 自动生成 P/Invoke）
+
+C 库由 CMake 负责构建；C# 绑定由 MSBuild + ClangSharp 独立负责，两者互不耦合。
+
+目录 `bindings/CSharp/`：
+
+- `generate.rsp` —— ClangSharp 参数（提交进仓库）
+- `Native.g.cs` —— **自动生成**的 P/Invoke（`dotnet build` 时按需刷新，勿手改）
+- `Wrapper.cs` —— 手写封装（含手写的 `String_View`/`Arena` 等 POD 布局）
+- `Cimai.csproj` —— 内置 `GenerateNativeBindings` MSBuild 目标
+
+首次使用先安装并锁版本的工具（manifest 在 `.config/dotnet-tools.json`）：
+
+```sh
+dotnet tool restore
+```
+
+构建 / 强制重新生成绑定：
+
+```sh
+dotnet build bindings/CSharp/Cimai.csproj   # 头文件变化时自动刷新 Native.g.cs
+dotnet build bindings/CSharp/Cimai.csproj -t:GenerateNativeBindings   # 强制重新生成
+```
+
+用法示例：
+
+```csharp
+using Cimai;
+using var file = SimaiFile.Parse("&title=Hello&artist=A&inote_1=(180){4}1,2,");
+Console.WriteLine(file.Title);             // "Hello"
+Console.WriteLine(file.GetDifficultyLevel(Cimai.Native.SimaiDifficulty.EASY));
+```
+
+> 改 `include/cimai/*.h` → `dotnet build` → ClangSharp 刷新 `Native.g.cs` → `Wrapper.cs` 重新编译。

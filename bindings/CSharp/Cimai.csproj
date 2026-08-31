@@ -1,0 +1,45 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<TargetFramework>net10.0</TargetFramework>
+		<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+		<LangVersion>latest</LangVersion>
+		<Nullable>enable</Nullable>
+		<ImplicitUsings>disable</ImplicitUsings>
+		<RootNamespace>Cimai</RootNamespace>
+		<AssemblyName>Cimai</AssemblyName>
+
+		<!-- 显式管理编译项，保证首次 clone（Native.g.cs 尚不存在）也能正确编译 -->
+		<EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+
+		<!-- 输入头文件根 + 生成输出位置 -->
+		<NativeHeadersRoot>$(MSBuildProjectDirectory)/../../include/cimai</NativeHeadersRoot>
+		<NativeOutput>$(MSBuildProjectDirectory)/Native.g.cs</NativeOutput>
+	</PropertyGroup>
+
+	<!-- Native.g.cs（自动生成）+ 手写源文件 -->
+	<ItemGroup>
+		<Compile Include="Helper.cs" />
+		<Compile Include="Native.cs" />
+		<Compile Include="Wrapper.cs" />
+		<Compile Include="$(NativeOutput)" />
+	</ItemGroup>
+
+	<!-- 这几个头文件任一变化 → 重新生成 Native.g.cs -->
+	<ItemGroup>
+		<NativeHeaders Include="&#xA;      $(NativeHeadersRoot)/cimai.h;&#xA;      $(NativeHeadersRoot)/parser.h;&#xA;      $(NativeHeadersRoot)/chart_parser.h;&#xA;      $(NativeHeadersRoot)/meta_parser.h;&#xA;      $(NativeHeadersRoot)/simai_types.h&#xA;    " />
+	</ItemGroup>
+
+	<!--
+    自动生成 C# P/Invoke 绑定。
+      dotnet build                      → 头文件变化时自动刷新 Native.g.cs
+      dotnet build -t:GenerateNativeBindings → 强制重新生成
+    Inputs/Outputs 让 MSBuild 只在实际需要时跑 ClangSharp（增量构建）。
+  -->
+	<Target Name="GenerateNativeBindings" BeforeTargets="CoreCompile" Inputs="@(NativeHeaders);$(MSBuildProjectDirectory)/generate.rsp" Outputs="$(NativeOutput)">
+		<!-- local tool 清单在仓库根 .config/dotnet-tools.json，自动 restore，clone 后无需手动 restore -->
+		<Exec Command="dotnet tool restore" WorkingDirectory="$(MSBuildProjectDirectory)/../.." />
+		<Exec Command="dotnet tool run ClangSharpPInvokeGenerator @generate.rsp" WorkingDirectory="$(MSBuildProjectDirectory)" />
+	</Target>
+
+</Project>

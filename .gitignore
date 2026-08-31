@@ -98,6 +98,9 @@ StyleCopReport.xml
 *.svclog
 *.scc
 
+# 例外：ClangSharp 的 response file 是要提交进仓库的，不要被上面的 *.rsp 忽略
+!bindings/CSharp/generate.rsp
+
 # Chutzpah Test files
 _Chutzpah*
 

@@ -4,7 +4,7 @@
 
 #include <stdlib.h>
 
-int cimai_parse(String_View *text, SimaiFile *file)
+void cimai_parse(String_View *text, SimaiFile *file)
 {
 	cimai_parse_metadata(text, file);
 	for (size_t i = 0; i < DIFFICULTY_COUNT; i++)

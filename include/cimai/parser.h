@@ -7,7 +7,7 @@
 extern "C" {
 #endif
 
-	CIMAI_API int cimai_parse(String_View *text, SimaiFile *file);
+	CIMAI_API void cimai_parse(String_View *text, SimaiFile *file);
 	CIMAI_API void cimai_file_free(SimaiFile *file);
 
 #ifdef __cplusplus
