@@ -1,0 +1,102 @@
+name: Release
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            rid: win-x64
+            cmake-build-preset: windows-x64-release
+            cmake-config-preset: windows-x64
+          - os: macos-latest
+            rid: osx-arm64
+            cmake-build-preset: macos-arm64-release
+            cmake-config-preset: macos-arm64
+          - os: macos-latest
+            rid: osx-x64
+            cmake-build-preset: macos-x64-release
+            cmake-config-preset: macos-x64
+          - os: ubuntu-latest
+            rid: linux-x64
+            cmake-build-preset: linux-x64-release
+            cmake-config-preset: linux-x64
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup CMake
+        uses: azure/setup-cmake@v4
+        with:
+          cmake-version: latest
+
+      - name: CMake Configure
+        run: cmake --preset ${{ matrix.cmake-config-preset }}
+
+      - name: CMake Build
+        run: cmake --build --preset ${{ matrix.cmake-build-preset }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: runtime-${{ matrix.rid }}
+          path: |
+            bindings/CSharp/Cimai/runtimes/${{ matrix.rid }}/native/*
+          retention-days: 1
+
+  pack:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Merge artifacts to runtimes
+        run: |
+          for dir in artifacts/runtime-*/; do
+            rid=$(basename "$dir" | sed 's/runtime-//')
+            native_src="$dir/native"
+            if [ -d "$native_src" ]; then
+              mkdir -p "bindings/CSharp/Cimai/runtimes/$rid/native"
+              cp -r "$native_src/"* "bindings/CSharp/Cimai/runtimes/$rid/native/"
+            fi
+          done
+          ls -la bindings/CSharp/Cimai/runtimes/
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore
+        run: dotnet restore bindings/CSharp/Cimai/Cimai.csproj
+
+      - name: Build
+        run: dotnet build bindings/CSharp/Cimai/Cimai.csproj -c Release --no-restore
+
+      - name: Pack
+        run: dotnet pack bindings/CSharp/Cimai/Cimai.csproj -c Release --no-build -o nupkgs
+
+      # Get a short-lived NuGet API key
+      - name: NuGet login (OIDC → temp API key)
+        uses: NuGet/login@v1
+        id: login
+        with:
+          user: re-poem
+    
+      # Push the package
+      - name: NuGet push
+        run: dotnet nuget push nupkgs/*.nupkg --api-key ${{ steps.login.outputs.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
