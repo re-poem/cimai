@@ -29,6 +29,11 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+  
+      # for windows build
+      - name: Setup MSVC
+        if: matrix.os == 'windows-latest'
+        uses: ilammy/msvc-dev-cmd@v1
 
       - name: Setup CMake
         uses: jwlawson/actions-setup-cmake@v2
