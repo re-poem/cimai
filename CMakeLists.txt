@@ -25,11 +25,25 @@ add_library (cimai SHARED
 target_include_directories(cimai
 	PUBLIC "include"
 )
-# dllexport
-target_compile_definitions(cimai
-    PRIVATE CIMAI_BUILD
-)
 
 # 测试
 enable_testing()
 add_subdirectory(tests)
+
+# C# Wrapper
+# 根据平台自动指定 C# 绑定的 runtimes 输出目录
+if(WIN32)
+    set(CSHARP_RID "win-$<IF:$<EQUAL:${CMAKE_SIZEOF_VOID_P},8>,x64,x86>")
+elseif(APPLE)
+    set(CSHARP_RID "osx-$<IF:$<EQUAL:${CMAKE_HOST_SYSTEM_PROCESSOR},arm64>,arm64,x64>")
+else()
+    set(CSHARP_RID "linux-x64")
+endif()
+
+set(CSHARP_NATIVE_OUTPUT "${CMAKE_CURRENT_SOURCE_DIR}/bindings/CSharp/Cimai/runtimes/${CSHARP_RID}/native")
+
+# 将动态库输出复制到对应的 runtimes 目录
+set_target_properties(cimai PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${CSHARP_NATIVE_OUTPUT}"
+    LIBRARY_OUTPUT_DIRECTORY "${CSHARP_NATIVE_OUTPUT}"
+)

@@ -1,3 +1,4 @@
 <Solution>
-  <Project Path="Cimai.csproj" />
+  <Project Path="Cimai/Cimai.csproj" />
+  <Project Path="Cimai.Generator/Cimai.Generator.csproj" />
 </Solution>

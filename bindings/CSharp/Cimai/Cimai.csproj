@@ -1,0 +1,48 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<TargetFrameworks>netstandard2.1;net9.0;net10.0</TargetFrameworks>
+		<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+		<LangVersion>latest</LangVersion>
+		<Nullable>enable</Nullable>
+		<ImplicitUsings>disable</ImplicitUsings>
+		<RootNamespace>Cimai</RootNamespace>
+		<AssemblyName>Cimai</AssemblyName>
+
+		<!-- 显式管理编译项，保证首次 clone（Native.g.cs 尚不存在）也能正确编译 -->
+		<EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+
+		<!--构建时不要打包-->
+		<GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+
+		<Title>$(AssemblyName)</Title>
+		<Version>0.0.17</Version>
+		<Authors>RE_Poem</Authors>
+		<Description>Fast and lightweight Simai chart parser written in pure C.</Description>
+		<PackageProjectUrl>https://github.com/re-poem/cimai</PackageProjectUrl>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<Compile Include="Helper.cs" />
+		<Compile Include="Native.cs" />
+		<Compile Include="Wrapper.cs" />
+		<Compile Include="Native.g.cs" />
+	</ItemGroup>
+
+	<Target Name="GenerateBinding" BeforeTargets="DispatchToInnerBuilds">
+		<Exec Command="dotnet tool run ClangSharpPInvokeGenerator @generate.rsp" WorkingDirectory="$(MSBuildProjectDirectory)" />
+	</Target>
+
+	<ItemGroup>
+		<ProjectReference Include="..\Cimai.Generator\Cimai.Generator.csproj"
+						  OutputItemType="Analyzer"
+					      ReferenceOutputAssembly="false" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<None Include="runtimes\win-*\native\*.dll" Pack="true" PackagePath="runtimes\" />
+		<None Include="runtimes\linux-*\native\*.so" Pack="true" PackagePath="runtimes\" />
+		<None Include="runtimes\osx-*\native\*.dylib" Pack="true" PackagePath="runtimes\" />
+	</ItemGroup>
+
+</Project>

@@ -9,6 +9,8 @@
 
 #define IS_NOTE_CHAR(c) ((c) >= '1' && (c) <= '8')
 #define IS_TOUCH_AREA_CHAR(c) ((c) >= 'A' && (c) <= 'E')
+// 通常来讲ABC判断是冗余的所以放后边
+#define IS_SLIDE_CODE_CHAR(c) ((c) == 'P' || (c) == 'Q' || (c) == 'K' || (c) == 'A' || (c) == 'B' || (c) == 'C')
 
 typedef struct
 {
@@ -317,6 +319,17 @@ static ParseNoteRetCode parse_timing(
 		} \
 	} while (0)
 
+#define EMIT_SLIDE_CONTENT \
+	do { \
+		size_t size = slide_content_len * sizeof(*slide_content); \
+		char *data = arena_alloc(_arena, size); \
+		memcpy(data, slide_content, size); \
+		note.slide_content = (String_View){ \
+			.data = data, \
+			.count = slide_content_len \
+		}; \
+	} while (0)
+
 
 	// 连写双押
 	if (text->count >= 3 &&
@@ -339,6 +352,7 @@ static ParseNoteRetCode parse_timing(
 	bool is_touch_start;
 	bool is_tap_head_slide = false;
 	bool is_slide_no_star_fade = false;
+	double hold_slide_duration = NAN;
 	// 滑条路径暂存
 	char slide_content[SLIDE_CONTENT_MAX];
 	int slide_content_len = 0;
@@ -447,10 +461,16 @@ static ParseNoteRetCode parse_timing(
 		case 's':
 		case 'z':
 		case 'w':
-			if (note.type == TAP)
+			// 理论上，对于一个合法的slide-code，在K之前的参数全部给予头，K之后全部给予尾是正确的
+		case 'K':
+			if (note.type != SLIDE)
 			{
 				// 强制star的note依然强制，强制tap-head的依然tap-head，也就是说1$$@-4 == 1-4
 				note.is_star = is_tap_head_slide && !note.is_star ? false : true;
+				if (note.type == HOLD || note.type == TOUCHHOLD)
+				{
+					hold_slide_duration = note.duration;
+				}
 				EMIT_NOTE; // 星星头
 				note.is_slide_no_star_fade = is_slide_no_star_fade;
 			}
@@ -459,16 +479,17 @@ static ParseNoteRetCode parse_timing(
 			slide_content_add(slide_content, &slide_content_len, text->data[i]);
 			break;
 
+
+
+
 		case '*':
 			if (note.type == SLIDE)
 			{
-				size_t size = slide_content_len * sizeof(*slide_content);
-				char *data = arena_alloc(_arena, size);
-				memcpy(data, slide_content, size);
-				note.slide_content = (String_View){
-					.data = data,
-					.count = slide_content_len
-				};
+				if (!isnan(hold_slide_duration))
+				{
+					note.slide_shoot_delay = hold_slide_duration;
+				}
+				EMIT_SLIDE_CONTENT;
 				EMIT_NOTE;
 
 				if (is_touch_start) slide_content_len = 2;
@@ -481,29 +502,27 @@ static ParseNoteRetCode parse_timing(
 		case '/':
 			if (note.type == SLIDE)
 			{
-				size_t size = slide_content_len * sizeof(*slide_content);
-				char *data = arena_alloc(_arena, size);
-				memcpy(data, slide_content, size);
-				note.slide_content = (String_View){
-					.data = data,
-					.count = slide_content_len
-				};
-				slide_content_len = 0;
+				if (!isnan(hold_slide_duration))
+				{
+					note.slide_shoot_delay = hold_slide_duration;
+					hold_slide_duration = NAN;
+				}
+				EMIT_SLIDE_CONTENT;
 			}
 			EMIT_NOTE;
+			slide_content_len = 0;
 			break;
 
 
 		case '`':
 			if (note.type == SLIDE)
 			{
-				size_t size = slide_content_len * sizeof(*slide_content);
-				char *data = arena_alloc(_arena, size);
-				memcpy(data, slide_content, size);
-				note.slide_content = (String_View){
-					.data = data,
-					.count = slide_content_len
-				};
+				if (!isnan(hold_slide_duration))
+				{
+					note.slide_shoot_delay = hold_slide_duration;
+					hold_slide_duration = NAN;
+				}
+				EMIT_SLIDE_CONTENT;
 			}
 			EMIT_NOTE;
 			sv_chop_left(text, i + 1);
@@ -511,23 +530,22 @@ static ParseNoteRetCode parse_timing(
 		case ',':
 			if (note.type == SLIDE)
 			{
-				size_t size = slide_content_len * sizeof(*slide_content);
-				char *data = arena_alloc(_arena, size);
-				memcpy(data, slide_content, size);
-				note.slide_content = (String_View){
-					.data = data,
-					.count = slide_content_len
-				};
+				if (!isnan(hold_slide_duration))
+				{
+					note.slide_shoot_delay = hold_slide_duration;
+					hold_slide_duration = NAN;
+				}
+				EMIT_SLIDE_CONTENT;
 			}
 			EMIT_NOTE;
 			sv_chop_left(text, i + 1);
 			return CIMAI_NOTE_SUCCESS;
 
 		default:
+			// 音符头
 			if (note.type == NONE &&
 				(IS_NOTE_CHAR(text->data[i]) || IS_TOUCH_AREA_CHAR(text->data[i])))
 			{
-				// 音符头
 				if (IS_NOTE_CHAR(text->data[i]))
 				{
 					note.type = TAP;
@@ -560,7 +578,10 @@ static ParseNoteRetCode parse_timing(
 					slide_content_add(slide_content, &slide_content_len, text->data[i]);
 				}
 			}
-			else if (IS_NOTE_CHAR(text->data[i]) || IS_TOUCH_AREA_CHAR(text->data[i]))
+			// Slide Content
+			else if (IS_NOTE_CHAR(text->data[i]) ||
+				IS_TOUCH_AREA_CHAR(text->data[i]) ||
+				IS_SLIDE_CODE_CHAR(text->data[i]))
 			{
 				slide_content_add(slide_content, &slide_content_len, text->data[i]);
 			}
