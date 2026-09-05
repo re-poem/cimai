@@ -16,7 +16,7 @@
 		<GeneratePackageOnBuild>false</GeneratePackageOnBuild>
 
 		<Title>$(AssemblyName)</Title>
-		<Version>0.0.17</Version>
+		<Version>0.0.18</Version>
 		<Authors>RE_Poem</Authors>
 		<Description>Fast and lightweight Simai chart parser written in pure C.</Description>
 		<PackageProjectUrl>https://github.com/re-poem/cimai</PackageProjectUrl>

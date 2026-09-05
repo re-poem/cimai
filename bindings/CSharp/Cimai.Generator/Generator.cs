@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using Microsoft.CodeAnalysis;
@@ -109,7 +110,7 @@ public class NativeWrapperGenerator : IIncrementalGenerator
             if (field.IsStatic) continue;
 
             var origName = field.Name;
-            var pascName = ToPascalCase(origName);
+            var pascName = ToPascalCaseName(origName);
             var fieldType = field.Type;
 
             // Enum
@@ -149,9 +150,11 @@ public class NativeWrapperGenerator : IIncrementalGenerator
         return sb.ToString();
     }
 
-    private static string ToPascalCase(string name)
+    private static string ToPascalCaseName(string name)
     {
         if (string.IsNullOrEmpty(name)) return name;
+        if (NameMap.TryGetValue(name, out var mappedName)) return mappedName;
+
         var parts = name.Split(['_'], StringSplitOptions.RemoveEmptyEntries);
         for (int i = 0; i < parts.Length; i++)
         {
@@ -160,6 +163,12 @@ public class NativeWrapperGenerator : IIncrementalGenerator
         }
         return string.Concat(parts);
     }
+
+    private static readonly Dictionary<string, string> NameMap = new()
+    {
+        { "hspeed", "HSpeed" },
+        { "sveloc", "SVeloc" },
+    };
 
     private static bool IsNativeBool(IFieldSymbol field)
     {

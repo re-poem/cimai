@@ -54,6 +54,9 @@ namespace Cimai.Native
 
         [NativeTypeName("_Bool")]
         public byte is_hanabi;
+
+        [NativeTypeName("_Bool")]
+        public byte can_be_folded;
     }
 
     public unsafe partial struct SimaiNoteList
