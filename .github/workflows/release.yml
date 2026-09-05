@@ -31,9 +31,9 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Setup CMake
-        uses: azure/setup-cmake@v4
+        uses: jwlawson/actions-setup-cmake@v2
         with:
-          cmake-version: latest
+          cmake-version: 'latest'
 
       - name: CMake Configure
         run: cmake --preset ${{ matrix.cmake-config-preset }}
@@ -45,8 +45,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: runtime-${{ matrix.rid }}
-          path: |
-            bindings/CSharp/Cimai/runtimes/${{ matrix.rid }}/native/*
+          # 规范路径格式，直接上传 native 文件夹内的文件
+          path: bindings/CSharp/Cimai/runtimes/${{ matrix.rid }}/native/
           retention-days: 1
 
   pack:
@@ -68,11 +68,9 @@ jobs:
         run: |
           for dir in artifacts/runtime-*/; do
             rid=$(basename "$dir" | sed 's/runtime-//')
-            native_src="$dir/native"
-            if [ -d "$native_src" ]; then
-              mkdir -p "bindings/CSharp/Cimai/runtimes/$rid/native"
-              cp -r "$native_src/"* "bindings/CSharp/Cimai/runtimes/$rid/native/"
-            fi
+            echo "Merging files for $rid..."
+            mkdir -p "bindings/CSharp/Cimai/runtimes/$rid/native"
+            cp -r "$dir"* "bindings/CSharp/Cimai/runtimes/$rid/native/"
           done
           ls -la bindings/CSharp/Cimai/runtimes/
 

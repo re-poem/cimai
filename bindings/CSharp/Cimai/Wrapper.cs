@@ -13,10 +13,10 @@ namespace Cimai;
 public unsafe class SimaiFile : IDisposable
 {
     private readonly Native.SimaiFile _native;
-    public static SimaiFile Parse(string simai) => new(simai);
-    private SimaiFile(string simai)
+    public static SimaiFile Parse(string fumen) => new(Encoding.UTF8.GetBytes(fumen));
+    public static SimaiFile Parse(byte[] source) => new(source);
+    private SimaiFile(byte[] source)
     {
-        var source = Encoding.UTF8.GetBytes(simai);
         fixed (byte* p = source)
         fixed (Native.SimaiFile* file = &_native)
         {
