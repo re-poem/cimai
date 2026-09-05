@@ -347,12 +347,12 @@ static ParseNoteRetCode parse_timing(
 	}
 
 	SimaiNote note = { 0 };
-	char *note_start = text->data;
+	const char *note_start = text->data;
 	String_View last_note = { 0 };
 
 	size_t i = 0;
 
-	bool is_touch_start;
+	bool is_touch_start = false;
 	bool is_tap_head_slide = false;
 	bool is_slide_no_star_fade = false;
 	double hold_slide_duration = NAN;

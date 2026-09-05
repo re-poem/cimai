@@ -12,7 +12,6 @@ void cimai_parse(String_View *text, SimaiFile *file)
 		if (file->charts[i] != NULL)
 			cimai_parse_chart(file->charts[i]);
 	}
-	return 1;
 }
 
 void cimai_file_free(SimaiFile *file)
