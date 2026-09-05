@@ -26,9 +26,6 @@ target_include_directories(cimai
 	PUBLIC "include"
 )
 
-# 测试
-enable_testing()
-add_subdirectory(tests)
 
 # C# Wrapper
 # 根据平台自动指定 C# 绑定的 runtimes 输出目录

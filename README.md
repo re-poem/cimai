@@ -1,79 +1,83 @@
 # cimai
 
-## 构建
+## Build
 
-```sh
-cmake --preset win-x64        # 生成 VS 工程（out/build/windows）
-cmake --build out/build/windows --config Debug
-```
+use **Visual Studio** pls.
 
-## 测试
+## Test
 
-```sh
-ctest --test-dir out/build/windows -C Debug --output-on-failure
-```
-测试代码完全Vibe而成，~~我觉得是时候得有人做simai-full-test了（~~
+use **MajdataX** pls.
 
-测试套件位于 `tests/`：
-
-- `test_core` —— 元数据、BPM/拍子、TAP/HOLD/SLIDE/TOUCH、修饰符、EACH、伪EACH、
-  同拍双押、HS/SV、内存生命周期等单元测试（期望值按 simai 官方谱面书式手算）。
-- `test_golden` —— golden 测试：
-  - 参考谱面前 10 行的完整解析 dump 与 `tests/data/golden_excerpt.txt` 逐字节对比；
-  - 完整参考谱面（`tests/data/hello_2025_maidata.txt`，改编自 "Hello (BPM) 2025"）
-    的元数据、结构统计（timings/各音符类型计数）与关键时间点断言。
-
-重新生成 golden 文件（仅在有意变更解析行为后执行）：
-
-```sh
-out/build/windows/tests/Debug/test_golden.exe --gen-golden
-```
-
-## 使用
+## Usage
 
 ```c
 #include <cimai/cimai.h>
 
+// ---- metadata + charts ----
 const char *text = "&title=T&inote_1=(180){4}1,2,";
 String_View sv = sv_from_cstr(text);
+
 SimaiFile file = { 0 };
-cimai_parse(&sv, &file);          // 解析元数据 + 全部难度谱面
-SimaiChart *ch = file.charts[EASY];
-// ch->timings.items[i].time / .notes ...
-cimai_file_free(&file);           // 释放 charts 与命令表（charts 指针被置 NULL）
+cimai_parse(&sv, &file);
+SimaiChart *chart = file.charts[EASY];
+// chart->timings.items[i].time / .notes ...
+cimai_file_free(&file); // free charts and commands
+
+
+// ---- chart only ----
+const char *text = "(180){4}1,2-4[4:1],,,";
+String_View sv = sv_from_cstr(text);
+
+SimaiChart chart = { 0 };
+cimai_parse_chart(&sv, &chart);
+// chart.timings.items[i].time / .notes ...
+cimai_chart_free(&&chart);
 ```
 
-## C# 绑定（ClangSharp 自动生成 P/Invoke）
+## Language Bindings
 
-C 库由 CMake 负责构建；C# 绑定由 MSBuild + ClangSharp 独立负责，两者互不耦合。
+### C#
+
+C# 绑定由 MSBuild + ClangSharp 构建。
+
+> CMake 目前直接把原生库输出到 `bindings/CSharp/Cimai/runtimes/<rid>/native/`供 C# 侧打包。
 
 目录 `bindings/CSharp/`：
 
-- `generate.rsp` —— ClangSharp 参数（提交进仓库）
-- `Native.g.cs` —— **自动生成**的 P/Invoke（`dotnet build` 时按需刷新，勿手改）
-- `Wrapper.cs` —— 手写封装（含手写的 `String_View`/`Arena` 等 POD 布局）
-- `Cimai.csproj` —— 内置 `GenerateNativeBindings` MSBuild 目标
-
-首次使用先安装并锁版本的工具（manifest 在 `.config/dotnet-tools.json`）：
+- `Cimai/Native.g.cs` —— ClangSharp 自动生成的 P/Invoke
+- `Cimai/Native.cs` / `Wrapper.cs` —— 手写部分
+- `Cimai.Generator/` —— 不需要手写封装的部分的自动封装
 
 ```sh
+# 首次使用：恢复 ClangSharp（.config/dotnet-tools.json）
 dotnet tool restore
-```
-
-构建 / 强制重新生成绑定：
-
-```sh
-dotnet build bindings/CSharp/Cimai.csproj   # 头文件变化时自动刷新 Native.g.cs
-dotnet build bindings/CSharp/Cimai.csproj -t:GenerateNativeBindings   # 强制重新生成
+dotnet build bindings/CSharp/Cimai.csproj
 ```
 
 用法示例：
 
 ```csharp
 using Cimai;
-using var file = SimaiFile.Parse("&title=Hello&artist=A&inote_1=(180){4}1,2,");
-Console.WriteLine(file.Title);             // "Hello"
-Console.WriteLine(file.GetDifficultyLevel(Cimai.Native.SimaiDifficulty.EASY));
-```
 
-> 改 `include/cimai/*.h` → `dotnet build` → ClangSharp 刷新 `Native.g.cs` → `Wrapper.cs` 重新编译。
+// metadata + charts
+using var file = SimaiFile.Parse("&title=Hello&inote_1=(180){4}1,2,");
+Console.WriteLine(file.Title);  // "Hello"
+var timings = file.Charts[(int)SimaiDifficulty.EASY].Timings;
+
+// chart only
+using var chart = Cimai.SimaiChart.Parse("(180){4}1,2v2[8:1]m,,,");
+var timings = chart.Timings;
+
+
+foreach (var t in timings)
+    Console.WriteLine($"{t.Time}, {t.Notes.Length} notes");
+
+```
+<br/>
+<br/>
+
+---
+
+<p align="center">
+Contributions welcome.⭐ If it helps, consider starring the repo.
+</p>
