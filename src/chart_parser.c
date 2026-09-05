@@ -37,6 +37,7 @@ typedef enum
 } ParseNoteRetCode;
 
 
+
 // 允许数字前后带空白，避免因空格被 sv_try_parse_float 拒绝
 static inline bool parse_float_trimmed(String_View sv, float *out)
 {
@@ -346,6 +347,8 @@ static ParseNoteRetCode parse_timing(
 	}
 
 	SimaiNote note = { 0 };
+	char *note_start = text->data;
+	String_View last_note = { 0 };
 
 	size_t i = 0;
 
@@ -500,6 +503,13 @@ static ParseNoteRetCode parse_timing(
 
 
 		case '/':
+			String_View cur_note = sv_from_parts(note_start, text->data + i - note_start);
+			if (sv_eq(last_note, cur_note))
+			{
+				notes->items[notes->count - 1].can_be_folded = true;
+			}
+			last_note = cur_note;
+
 			if (note.type == SLIDE)
 			{
 				if (!isnan(hold_slide_duration))
@@ -577,6 +587,7 @@ static ParseNoteRetCode parse_timing(
 				{
 					slide_content_add(slide_content, &slide_content_len, text->data[i]);
 				}
+				note_start = text->data + i;
 			}
 			// Slide Content
 			else if (IS_NOTE_CHAR(text->data[i]) ||

@@ -46,6 +46,8 @@ typedef struct
 	String_View slide_content;
 	//touch
 	bool is_hanabi;
+
+	bool can_be_folded;
 } SimaiNote;
 typedef struct
 {
