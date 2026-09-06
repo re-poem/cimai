@@ -28,4 +28,4 @@ cimai
 -x
 c
 --define-macro
-CIMAI_API=
+CLANGSHARP=
