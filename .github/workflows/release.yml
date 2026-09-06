@@ -53,8 +53,11 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: runtime-${{ matrix.rid }}
-          # 规范路径格式，直接上传 native 文件夹内的文件
-          path: bindings/CSharp/Cimai/runtimes/${{ matrix.rid }}/native/
+          # 仅匹配 .dll, .so, .dylib 动态库，忽略 pdb/lib 等杂项
+          path: |
+            bindings/CSharp/Cimai/runtimes/${{ matrix.rid }}/native/*.dll
+            bindings/CSharp/Cimai/runtimes/${{ matrix.rid }}/native/*.so
+            bindings/CSharp/Cimai/runtimes/${{ matrix.rid }}/native/*.dylib
           retention-days: 1
 
   pack:

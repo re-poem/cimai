@@ -73,12 +73,12 @@ public unsafe class SimaiChart : IDisposable
     private readonly Native.SimaiChart* _native;
     private readonly bool _ownsNative;
 
-    public static SimaiChart Parse(string simai) => new(simai);
-    private SimaiChart(string simai)
+    public static SimaiChart Parse(string fumen) => new(Encoding.UTF8.GetBytes(fumen));
+    public static SimaiChart Parse(byte[] source) => new(source);
+    private SimaiChart(byte[] source)
     {
         _ownsNative = true;
 
-        var source = Encoding.UTF8.GetBytes(simai);
         fixed (byte* p = source)
         {
             var text = new Native.String_View
