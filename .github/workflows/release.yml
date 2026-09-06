@@ -90,6 +90,11 @@ jobs:
       - name: Restore Tools
         run: dotnet tool restore
 
+      - name: Install LLVM
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y llvm clang
+
       - name: Build
         run: dotnet build bindings/CSharp/Cimai/Cimai.csproj -c Release --no-restore
 
