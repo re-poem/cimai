@@ -82,6 +82,14 @@ jobs:
           done
           ls -la bindings/CSharp/Cimai/runtimes/
 
+
+      - name: Extract Version
+        id: get_version
+        run: |
+          # 从 'v1.2.3' 提取出 '1.2.3'
+          VERSION=${GITHUB_REF_NAME#v}
+          echo "VERSION=${VERSION}" >> $GITHUB_OUTPUT
+
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
@@ -105,7 +113,7 @@ jobs:
         run: dotnet build bindings/CSharp/Cimai/Cimai.csproj -c Release --no-restore
 
       - name: Pack
-        run: dotnet pack bindings/CSharp/Cimai/Cimai.csproj -c Release --no-build -o nupkgs
+        run: dotnet pack bindings/CSharp/Cimai/Cimai.csproj -c Release -p:Version=${{ steps.get_version.outputs.VERSION }} --no-build -o nupkgs
 
       # Get a short-lived NuGet API key
       - name: NuGet login (OIDC → temp API key)
