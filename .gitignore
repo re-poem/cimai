@@ -368,3 +368,6 @@ FodyWeavers.xsd
 
 # built cimai
 cimai.dll
+
+# generate binding rsp
+!generate.rsp
