@@ -84,16 +84,16 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
+      - name: Install Clang
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang libclang-dev
+
       - name: Restore C# Project
         run: dotnet restore bindings/CSharp/Cimai/Cimai.csproj
 
       - name: Restore Tools
         run: dotnet tool restore
-
-      - name: Install LLVM
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y llvm clang
 
       - name: Build
         run: dotnet build bindings/CSharp/Cimai/Cimai.csproj -c Release --no-restore
