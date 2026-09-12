@@ -128,3 +128,187 @@ jobs:
       # Push the package
       - name: NuGet push
         run: dotnet nuget push nupkgs/*.nupkg --api-key ${{ steps.login.outputs.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
+
+  publish-upm:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Extract Version
+        id: get_version
+        run: |
+          VERSION=${GITHUB_REF_NAME#v}
+          echo "VERSION=${VERSION}" >> $GITHUB_OUTPUT
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Install LLVM 21
+        run: |
+          wget https://apt.llvm.org/llvm.sh
+          chmod +x llvm.sh
+          sudo ./llvm.sh 21
+          sudo apt-get install -y clang-21 libclang-21-dev
+          sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-21 100
+
+      - name: Restore C# project + tools
+        run: |
+          dotnet restore bindings/CSharp/Cimai/Cimai.csproj
+          dotnet tool restore
+
+      - name: Build C# Native Wrapper & Source Generator
+        run: |
+          set -euo pipefail
+          # 1. 重新生成 Native.g.cs 并编译 Generator
+          dotnet build bindings/CSharp/Cimai/Cimai.csproj -c Release --no-restore
+          dotnet build bindings/CSharp/Cimai.Generator/Cimai.Generator.csproj -c Release
+
+      - name: Combine macOS Universal Dylib
+        run: |
+          set -euo pipefail
+          # 使用 lipo 将 arm64 和 x64 的 dylib 合并为 Universal Binary，规避 Unity 插件冲突
+          mkdir -p artifacts/runtime-osx-universal/native
+          lipo -create \
+            artifacts/runtime-osx-arm64/native/libcimai.dylib \
+            artifacts/runtime-osx-x64/native/libcimai.dylib \
+            -output artifacts/runtime-osx-universal/native/libcimai.dylib
+
+      - name: Stage UPM package
+        env:
+          VERSION: ${{ steps.get_version.outputs.VERSION }}
+        run: |
+          set -euo pipefail
+          STAGE="$RUNNER_TEMP/upm-stage"
+          rm -rf "$STAGE"
+          mkdir -p "$STAGE/Runtime"
+          mkdir -p "$STAGE/Analyzers/DotNet"
+          mkdir -p "$STAGE/runtimes"
+
+          # ---- 1. C# 源码 ----
+          cp bindings/CSharp/Cimai/Helper.cs   "$STAGE/Runtime/"
+          cp bindings/CSharp/Cimai/Native.cs   "$STAGE/Runtime/"
+          cp bindings/CSharp/Cimai/Wrapper.cs  "$STAGE/Runtime/"
+          cp bindings/CSharp/Cimai/Native.g.cs "$STAGE/Runtime/"
+
+          # ---- 2. Cimai.Runtime.asmdef（绝对不能引用 Generator！）----
+          cat > "$STAGE/Runtime/Cimai.Runtime.asmdef" <<'EOF'
+          {
+              "name": "Cimai.Runtime",
+              "rootNamespace": "Cimai",
+              "references": [],
+              "includePlatforms": [],
+              "excludePlatforms": [],
+              "allowUnsafeCode": true,
+              "overrideReferences": false,
+              "precompiledReferences": [],
+              "autoReferenced": true,
+              "defineConstraints": [],
+              "versionDefines": [],
+              "noEngineReferences": false
+          }
+          EOF
+
+          cat > "$STAGE/Runtime/Cimai.Runtime.asmdef.meta" <<'EOF'
+          fileFormatVersion: 2
+          guid: a1b2c3d4e5f67890abcdef1234567890
+          AssemblyDefinitionImporter:
+            externalObjects: {}
+            userData:
+            assetBundleName:
+            assetBundleVariant:
+          EOF
+
+          # ---- 3. Roslyn Source Generator DLL & .meta (带 RoslynAnalyzer 标签) ----
+          cp bindings/CSharp/Cimai.Generator/bin/Release/netstandard2.0/Cimai.Generator.dll "$STAGE/Analyzers/DotNet/"
+
+          cat > "$STAGE/Analyzers/DotNet/Cimai.Generator.dll.meta" <<'EOF'
+          fileFormatVersion: 2
+          guid: f0e9d8c7b6a54321fedcba0987654321
+          PluginImporter:
+            externalObjects: {}
+            serializedVersion: 2
+            iconMap: {}
+            executionOrder: {}
+            defineConstraints: []
+            isPrecompiled: 1
+            isFeed: 0
+            userData: 
+            assetBundleName: 
+            assetBundleVariant: 
+          labels:
+          - RoslynAnalyzer
+          EOF
+
+          # ---- 4. package.json ----
+          cat > "$STAGE/package.json" <<EOF
+          {
+            "name": "com.re-poem.cimai",
+            "version": "${VERSION}",
+            "displayName": "Cimai",
+            "description": "Fast and lightweight Simai chart parser written in pure C.",
+            "unity": "2021.3",
+            "author": {
+              "name": "RE_Poem",
+              "url": "https://github.com/re-poem"
+            },
+            "keywords": ["simai", "chart", "parser", "majdata"],
+            "license": "MIT",
+            "repository": {
+              "type": "git",
+              "url": "https://github.com/re-poem/cimai.git",
+              "reference": "main"
+            }
+          }
+          EOF
+
+          # ---- 5. 复制 Native 动态库 ----
+          # Windows
+          mkdir -p "$STAGE/runtimes/win-x64/native"
+          cp artifacts/runtime-win-x64/native/* "$STAGE/runtimes/win-x64/native/"
+
+          # Linux
+          mkdir -p "$STAGE/runtimes/linux-x64/native"
+          cp artifacts/runtime-linux-x64/native/* "$STAGE/runtimes/linux-x64/native/"
+
+          # macOS (使用刚才 lipo 合并好的 Universal Binary)
+          mkdir -p "$STAGE/runtimes/osx/native"
+          cp artifacts/runtime-osx-universal/native/* "$STAGE/runtimes/osx/native/"
+
+          echo "=== UPM package layout ==="
+          find "$STAGE" -type f | sort
+
+      - name: Push orphan branch 'upm'
+        env:
+          VERSION: ${{ steps.get_version.outputs.VERSION }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          STAGE="$RUNNER_TEMP/upm-stage"
+          cd "$STAGE"
+
+          git init -q
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git add -A
+          git commit -q -m "Release v${VERSION}"
+
+          REMOTE="https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git remote add origin "$REMOTE"
+
+          git push -f origin HEAD:refs/heads/upm
+          git tag -f "upm-v${VERSION}" HEAD
+          git push -f origin "refs/tags/upm-v${VERSION}"
+
+          echo "Pushed upm + tag upm-v${VERSION}"

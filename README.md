@@ -73,6 +73,32 @@ foreach (var t in timings)
     Console.WriteLine($"{t.Time}, {t.Notes.Length} notes");
 
 ```
+
+### Unity
+
+Cimai 同时以 [UPM 包](https://docs.unity3d.com/Manual/cus-layout.html)（`com.re-poem.cimai`）的形式发布到孤儿分支 `upm`。
+
+**通过 UPM 安装（推荐）：** Unity Editor → Window → Package Manager → `+` → **Add package by git URL**：
+
+| 用途 | URL |
+|---|---|
+| 最新版 | `https://github.com/re-poem/cimai.git#upm` |
+| 锁定到 v1.2.3 | `https://github.com/re-poem/cimai.git#upm-v1.2.3` |
+
+也可直接编辑项目的 `Packages/manifest.json`：
+
+```jsonc
+{
+  "dependencies": {
+    "com.re-poem.cimai": "https://github.com/re-poem/cimai.git#upm-v1.2.3"
+  }
+}
+```
+
+**要求 Unity 2022.3 或更高版本** —— Unity 在 2022.2 才正式支持 [UPM 包内携带 Roslyn source generator](https://docs.unity3d.com/Manual/roslyn-analyzers.html)。`SimaiDifficulty` 等枚举副本、struct PascalCase 包装器、fixed buffer 包装都由包里 `SourceGenerators~/` 子目录里的 `Cimai.Generator` 在 Unity 导入包时**现场编译**后挂到 `Cimai.Runtime` 的编译流程上 —— 不是预生成的代码，源里改动即生效。
+
+原生库（`cimai.dll` / `libcimai.so` / `libcimai.dylib`）位于 NuGet 风格的 `runtimes/<rid>/native/` 目录下，Unity 2022.2+ 会自动按平台识别。
+
 <br/>
 <br/>
 
