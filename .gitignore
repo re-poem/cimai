@@ -371,3 +371,6 @@ cimai.dll
 
 # generate binding rsp
 !generate.rsp
+/bindings/CSharp/Cimai/generated/Cimai.Generator/Cimai.Generators.NativeWrapperGenerator
+/bindings/CSharp/Cimai/runtimes/win-x64/native/cimai.exp
+/bindings/CSharp/Cimai/runtimes/win-x64/native/cimai.lib

@@ -9,7 +9,6 @@ endif()
 
 project("cimai"
     LANGUAGES C
-    VERSION 0.0.1
 )
 
 # 仅为 MSVC 使用 /utf-8
