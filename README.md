@@ -42,12 +42,6 @@ C# 绑定由 MSBuild + ClangSharp 构建。
 
 > CMake 目前直接把原生库输出到 `bindings/CSharp/Cimai/runtimes/<rid>/native/`供 C# 侧打包。
 
-目录 `bindings/CSharp/`：
-
-- `Cimai/Native.g.cs` —— ClangSharp 自动生成的 P/Invoke
-- `Cimai/Native.cs` / `Wrapper.cs` —— 手写部分
-- `Cimai.Generator/` —— 不需要手写封装的部分的自动封装
-
 ```sh
 # 首次使用：恢复 ClangSharp（.config/dotnet-tools.json）
 dotnet tool restore
