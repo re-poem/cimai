@@ -1,0 +1,18 @@
+{
+  "name": "com.re-poem.cimai",
+  "version": "0.0.22-dev.0.g7ca336d",
+  "displayName": "Cimai",
+  "description": "Fast and lightweight Simai chart parser written in pure C.",
+  "unity": "2021.3",
+  "author": {
+    "name": "RE_Poem",
+    "url": "https://github.com/re-poem"
+  },
+  "keywords": ["simai", "chart", "parser", "majdata"],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/re-poem/cimai.git",
+    "reference": "main"
+  }
+}
