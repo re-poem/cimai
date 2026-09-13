@@ -21,7 +21,8 @@ SimaiFile file = { 0 };
 cimai_parse(&sv, &file);
 SimaiChart *chart = file.charts[EASY];
 // chart->timings.items[i].time / .notes ...
-cimai_file_free(&file); // free charts and commands
+cimai_file_release(&file); // 释放 charts + commands（file 本身由调用方持有）
+// 若 file 是 calloc/malloc 出来的，调用方还需 free(&file)
 
 
 // ---- chart only ----
@@ -31,7 +32,8 @@ String_View sv = sv_from_cstr(text);
 SimaiChart chart = { 0 };
 cimai_parse_chart(&sv, &chart);
 // chart.timings.items[i].time / .notes ...
-cimai_chart_free(&&chart);
+cimai_chart_release(&chart); // 只释放 chart 内部资源（chart 本身由调用方持有）
+// 若 chart 是 calloc/malloc 出来的，调用方还需 free(&chart)
 ```
 
 ## Language Bindings

@@ -766,13 +766,13 @@ void cimai_parse_chart(SimaiChart *chart)
 	free(notes.items);
 }
 
-void cimai_chart_free(SimaiChart **chart_ptr)
+// 释放 chart 内部由 cimai_parse_chart 分配的资源。
+// chart 结构体本身由调用方持有与释放（C 端用 free，C# 端走 GC）。
+// 因此本函数对栈、堆、managed 内存里的 chart 都安全。
+void cimai_chart_release(SimaiChart *chart)
 {
-	if (chart_ptr == NULL || *chart_ptr == NULL)
+	if (chart == NULL)
 		return;
-	SimaiChart *chart = *chart_ptr;
 	free(chart->timings.items);
 	arena_free(&chart->_arena);
-	free(chart);
-	*chart_ptr = NULL;
 }

@@ -3,57 +3,50 @@ using System.Text;
 
 namespace Cimai;
 
-public unsafe partial struct SimaiFile : IDisposable
+// generator emit：
+//   - VALUE_STRUCT_TYPES（SimaiNote/SimaiTiming/SimaiCommand）：readonly struct
+//   - REFERENCE_CLASS_TYPES（SimaiChart/SimaiFile）：sealed unsafe partial class
+
+public sealed unsafe partial class SimaiChart
 {
-    public static SimaiFile Parse(string fumen) => Parse(Encoding.UTF8.GetBytes(fumen));
-    public static SimaiFile Parse(byte[] source)
+    public static SimaiChart Parse(string source) => Parse(Encoding.UTF8.GetBytes(source));
+
+    public static SimaiChart Parse(byte[] source)
     {
-        var file = stackalloc Native.SimaiFile[1];
-        fixed (byte* p = source)
-        {
-            var text = new Native.String_View
-            {
-                count = (nuint)source.Length,
-                data = p,
-            };
-            Native.Methods.cimai_parse(&text, file);
-        }
-        return new SimaiFile(*file);
+        var chart = new SimaiChart();
+        chart.Init(source);
+        return chart;
     }
 
-    public void Dispose()
+    internal void Init(byte[] source)
     {
-        fixed (SimaiFile* p = &this)
+        fixed (Native.SimaiChart* p = &_native)
+        fixed (byte* sp = source)
         {
-            Native.Methods.cimai_file_free((Native.SimaiFile*)p);
+            p->fumen = new Native.String_View { count = (nuint)source.Length, data = sp };
+            Native.Methods.cimai_parse_chart(p);
         }
     }
 }
 
-public unsafe partial struct SimaiChart : IDisposable
+public sealed unsafe partial class SimaiFile
 {
-    public static SimaiChart Parse(string fumen) => Parse(Encoding.UTF8.GetBytes(fumen));
-    public static SimaiChart Parse(byte[] source)
+    public static SimaiFile Parse(string source) => Parse(Encoding.UTF8.GetBytes(source));
+
+    public static SimaiFile Parse(byte[] source)
     {
-        var chart = stackalloc Native.SimaiChart[1];
-        fixed (byte* p = source)
-        {
-            chart->fumen = new Native.String_View
-            {
-                count = (nuint)source.Length,
-                data = p,
-            };
-            Native.Methods.cimai_parse_chart(chart);
-        }
-        return new SimaiChart(*chart);
+        var file = new SimaiFile();
+        file.Init(source);
+        return file;
     }
 
-    public void Dispose()
+    internal void Init(byte[] source)
     {
-        fixed (SimaiChart* self = &this)
+        fixed (Native.SimaiFile* p = &_native)
+        fixed (byte* sp = source)
         {
-            var p = (Native.SimaiChart*)self;
-            Native.Methods.cimai_chart_free(&p);
+            var text = new Native.String_View { count = (nuint)source.Length, data = sp };
+            Native.Methods.cimai_parse(&text, p);
         }
     }
 }

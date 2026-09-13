@@ -192,13 +192,13 @@ namespace Cimai.Native
         public static extern void cimai_parse(String_View* text, SimaiFile* file);
 
         [DllImport("cimai", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-        public static extern void cimai_file_free(SimaiFile* file);
+        public static extern void cimai_file_release(SimaiFile* file);
 
         [DllImport("cimai", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
         public static extern void cimai_parse_chart(SimaiChart* chart);
 
         [DllImport("cimai", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
-        public static extern void cimai_chart_free(SimaiChart** chart);
+        public static extern void cimai_chart_release(SimaiChart* chart);
 
         [DllImport("cimai", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
         public static extern void cimai_parse_metadata(String_View* text, SimaiFile* file);
