@@ -8,8 +8,10 @@ namespace Cimai;
 public sealed unsafe class SimaiFile : IDisposable
 {
     private Native.SimaiFile _native;
-    private bool _disposed;
     private readonly SimaiChart?[] _charts = new SimaiChart[(int)SimaiDifficulty.DIFFICULTY_COUNT];
+
+    public bool IsDisposed { get; private set; }
+
 
     public ReadOnlySpan<byte> Title
     {
@@ -100,7 +102,7 @@ public sealed unsafe class SimaiFile : IDisposable
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private void ThrowIfDisposed()
     {
-        if (_disposed)
+        if (IsDisposed)
             ThrowDisposed();
     }
 
@@ -126,8 +128,8 @@ public sealed unsafe class SimaiFile : IDisposable
 
     public void Dispose()
     {
-        if (_disposed) return;
-        _disposed = true;
+        if (IsDisposed) return;
+        IsDisposed = true;
         Free();
         GC.SuppressFinalize(this);
     }

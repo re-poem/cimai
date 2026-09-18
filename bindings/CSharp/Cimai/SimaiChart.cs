@@ -8,7 +8,7 @@ namespace Cimai;
 public sealed unsafe class SimaiChart : IDisposable
 {
     private Native.SimaiChart _native;
-    private bool _disposed;
+    public bool IsDisposed { get; private set; }
 
     public ReadOnlySpan<byte> Level
     {
@@ -71,7 +71,7 @@ public sealed unsafe class SimaiChart : IDisposable
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private void ThrowIfDisposed()
     {
-        if (_disposed)
+        if (IsDisposed)
             ThrowDisposed();
     }
 
@@ -92,8 +92,8 @@ public sealed unsafe class SimaiChart : IDisposable
 
     public void Dispose()
     {
-        if (_disposed) return;
-        _disposed = true;
+        if (IsDisposed) return;
+        IsDisposed = true;
         Free();
         GC.SuppressFinalize(this);
     }
