@@ -24,19 +24,19 @@
 	<ItemGroup>
 		<Compile Include="Helper.cs" />
 		<Compile Include="Native.cs" />
-		<Compile Include="Wrapper.cs" />
+		<Compile Include="SimaiChart.cs" />
+		<Compile Include="SimaiCommand.cs" />
+		<Compile Include="SimaiDifficulty.cs" />
+		<Compile Include="SimaiFile.cs" />
+		<Compile Include="SimaiNote.cs" />
+		<Compile Include="SimaiNoteType.cs" />
+		<Compile Include="SimaiTiming.cs" />
 		<Compile Include="Native.g.cs" />
 	</ItemGroup>
 
 	<Target Name="GenerateBinding" BeforeTargets="DispatchToInnerBuilds">
 		<Exec Command="dotnet tool run ClangSharpPInvokeGenerator @generate.rsp" WorkingDirectory="$(MSBuildProjectDirectory)" />
 	</Target>
-
-	<ItemGroup>
-		<ProjectReference Include="..\Cimai.Generator\Cimai.Generator.csproj"
-						  OutputItemType="Analyzer"
-					      ReferenceOutputAssembly="false" />
-	</ItemGroup>
 
 	<ItemGroup>
 		<Content Include="runtimes\**\*">

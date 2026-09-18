@@ -3,14 +3,20 @@
 #   dotnet tool run ClangSharpPInvokeGenerator @generate.rsp
 #
 # 路径相对于 bindings/CSharp（MSBuild 目标会以该项目目录为工作目录执行）。
-# -f  解析入口（umbrella 头）
-# -I  include 根，使 <cimai/...> 与 <thirdparty/...> 都能被解析
+# -f  解析入口
+# -I  include 根，使 <include/.../...> 等都能被解析
 # -t  需要为其生成绑定而被遍历的 API 头（ClangSharp 默认不遍历 #include 到的头）
 # --define-macro   生成绑定时，忽略 CIMAI_API 的导出宏
+
 -f
 ../../../include/cimai/cimai.h
+# 额外多导出给wrapper用的
+-f
+../../../include/cimai/memory.h
+
 -I
 ../../../include
+
 -t
 ../../../include/cimai/parser.h
 -t
@@ -19,6 +25,9 @@
 ../../../include/cimai/meta_parser.h
 -t
 ../../../include/cimai/simai_types.h
+-t
+../../../include/cimai/memory.h
+
 -n
 Cimai.Native
 -o

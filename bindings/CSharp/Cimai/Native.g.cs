@@ -202,5 +202,17 @@ namespace Cimai.Native
 
         [DllImport("cimai", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
         public static extern void cimai_parse_metadata(String_View* text, SimaiFile* file);
+
+        [DllImport("cimai", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        public static extern void* cimai_malloc([NativeTypeName("size_t")] nuint size);
+
+        [DllImport("cimai", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        public static extern void* cimai_calloc([NativeTypeName("size_t")] nuint count, [NativeTypeName("size_t")] nuint size);
+
+        [DllImport("cimai", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        public static extern void* cimai_realloc(void* ptr, [NativeTypeName("size_t")] nuint size);
+
+        [DllImport("cimai", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        public static extern void cimai_free(void* ptr);
     }
 }

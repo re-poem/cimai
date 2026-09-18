@@ -19,6 +19,7 @@ endif()
 # 库内容
 add_library (cimai SHARED
     "src/misc/thirdparty_impl.c"
+    "src/memory.c"
     "src/meta_parser.c"
     "src/chart_parser.c"
     "src/parser.c"
