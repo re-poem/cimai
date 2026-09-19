@@ -96,6 +96,19 @@ public sealed unsafe class SimaiFile : IDisposable
         return file;
     }
 
+    public static SimaiFile ParseMetadata(string source) => ParseMetadata(Encoding.UTF8.GetBytes(source));
+    public static SimaiFile ParseMetadata(byte[] source)
+    {
+        var file = new SimaiFile();
+        fixed (Native.SimaiFile* p = &file._native)
+        fixed (byte* sp = source)
+        {
+            var text = new Native.String_View { count = (nuint)source.Length, data = sp };
+            Native.Methods.cimai_parse_metadata(&text, p);
+        }
+        return file;
+    }
+
 
 
 
