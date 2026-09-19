@@ -474,7 +474,9 @@ static ParseNoteRetCode parse_timing(
 				{
 					hold_slide_duration = note.duration;
 				}
+				int8_t start_pos = note.start_pos;
 				EMIT_NOTE; // 星星头
+				note.start_pos = start_pos;
 				note.is_slide_no_star_fade = is_slide_no_star_fade;
 			}
 			note.type = SLIDE;
@@ -493,7 +495,9 @@ static ParseNoteRetCode parse_timing(
 					note.slide_shoot_delay = hold_slide_duration;
 				}
 				EMIT_SLIDE_CONTENT;
+				int8_t start_pos = note.start_pos;
 				EMIT_NOTE;
+				note.start_pos = start_pos;
 
 				if (is_touch_start) slide_content_len = 2;
 				else slide_content_len = 1;
