@@ -719,12 +719,14 @@ void cimai_parse_chart(SimaiChart *chart)
 						da_append(timings, timing);
 						break;
 					case CIMAI_NOTE_FAKE_EACH:
-						int fake_count = 1;
-						do
+						// 伪双（pseudo-EACH）：` 分隔的每组音符依次晚一个 128 分音符
+						// （1.875 / bpm，与 MajSimaiX 一致）。首组由外层 parse_timing
+						// 解析，落在段落起点；此前实现把首组与第二组合并、整体偏移
+						// 一个间隔，并错误地标记为 EACH。
+						int fake_count = 0;
+						for (;;)
 						{
-							ret = parse_timing(ctx, &text, &notes, _arena);
 							calc_each(notes);
-							if (ret <= 0) break;
 							timing.time = ctx.time + fake_count * (60 / ctx.bpm * 4 / 128);
 							timing.bpm = ctx.bpm;
 							timing.hspeed = ctx.hspeed;
@@ -736,9 +738,15 @@ void cimai_parse_chart(SimaiChart *chart)
 							timing.sign_num = ctx.sign_num;
 							timing.sign_den = ctx.sign_den;
 							timing.notes = notes_into_arena(_arena, &notes);
-							fake_count++;
 							da_append(timings, timing);
-						} while (ret == CIMAI_NOTE_FAKE_EACH);
+
+							if (ret != CIMAI_NOTE_FAKE_EACH)
+								break;
+							ret = parse_timing(ctx, &text, &notes, _arena);
+							if (ret <= 0)
+								break;
+							fake_count++;
+						}
 						ctx.time += ctx.seconds_per_beat;
 						break;
 					default:
