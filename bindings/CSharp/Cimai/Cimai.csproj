@@ -1,7 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
 	<PropertyGroup>
-		<TargetFrameworks>netstandard2.1;net9.0;net10.0</TargetFrameworks>
+		<!-- CI 包构建在 Linux 上只编译无需 Android/iOS workload 的桌面 TFM。 -->
+		<TargetFrameworks Condition="'$(CimaiDesktopOnly)' == 'true'">netstandard2.1;net9.0;net10.0</TargetFrameworks>
+		<TargetFrameworks Condition="'$(CimaiDesktopOnly)' != 'true'">netstandard2.1;net9.0;net9.0-android;net9.0-ios;net10.0</TargetFrameworks>
 		<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
 		<LangVersion>latest</LangVersion>
 		<Nullable>enable</Nullable>
@@ -19,6 +21,10 @@
 		<Authors>RE_Poem</Authors>
 		<Description>Fast and lightweight Simai chart parser written in pure C.</Description>
 		<PackageProjectUrl>https://github.com/re-poem/cimai</PackageProjectUrl>
+
+		<!-- 移动平台最低系统版本，跟 CMakePresets.json 的 ANDROID_API_LEVEL / iOS deployment target 对齐 -->
+		<SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-android'))">24.0</SupportedOSPlatformVersion>
+		<SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-ios'))">15.0</SupportedOSPlatformVersion>
 	</PropertyGroup>
 
 	<ItemGroup>
@@ -39,7 +45,8 @@
 	</Target>
 
 	<ItemGroup>
-		<Content Include="runtimes\**\*">
+		<!-- NuGet runtime assets must contain only loadable native libraries. -->
+		<Content Include="runtimes\**\*.dll;runtimes\**\*.so;runtimes\**\*.dylib">
 			<Pack>true</Pack>
 			<PackagePath>runtimes</PackagePath>
 			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>

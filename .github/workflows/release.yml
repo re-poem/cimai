@@ -6,6 +6,18 @@ on:
       - 'v*'
   workflow_dispatch:
 
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  # Linux pack job only needs the portable managed assemblies; mobile native assets are
+  # produced by the build matrix and included as NuGet runtime assets.
+  CIMAI_DESKTOP_ONLY: 'true'
+
 jobs:
   build:
     runs-on: ${{ matrix.os }}
@@ -29,6 +41,33 @@ jobs:
             rid: linux-x64
             cmake-build-preset: linux-x64-release
             cmake-config-preset: linux-x64
+          # Android (NDK r27 on ubuntu-latest)
+          - os: ubuntu-latest
+            rid: android-arm64
+            cmake-build-preset: android-arm64-release
+            cmake-config-preset: android-arm64
+            setup-android-ndk: 'true'
+          - os: ubuntu-latest
+            rid: android-x64
+            cmake-build-preset: android-x64-release
+            cmake-config-preset: android-x64
+            setup-android-ndk: 'true'
+          # iOS device / simulator (macos-latest, Xcode)
+          - os: macos-latest
+            rid: ios-arm64
+            cmake-build-preset: ios-arm64-release
+            cmake-config-preset: ios-arm64
+            setup-xcode: 'true'
+          - os: macos-latest
+            rid: iossimulator-arm64
+            cmake-build-preset: ios-sim-arm64-release
+            cmake-config-preset: ios-sim-arm64
+            setup-xcode: 'true'
+          - os: macos-latest
+            rid: iossimulator-x64
+            cmake-build-preset: ios-sim-x64-release
+            cmake-config-preset: ios-sim-x64
+            setup-xcode: 'true'
 
     steps:
       - uses: actions/checkout@v4
@@ -37,6 +76,28 @@ jobs:
       - name: Setup MSVC
         if: matrix.os == 'windows-latest'
         uses: ilammy/msvc-dev-cmd@v1
+
+      # Use the runner's selected Xcode and verify both iOS SDKs.
+      - name: Verify Xcode SDKs
+        if: matrix.setup-xcode == 'true'
+        run: |
+          xcodebuild -version
+          xcrun --sdk iphoneos --show-sdk-path
+          xcrun --sdk iphonesimulator --show-sdk-path
+
+      # for Android build: install Android NDK r27 + cmake + ninja
+      - name: Setup Android NDK
+        if: matrix.setup-android-ndk == 'true'
+        run: |
+          set -e
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ninja-build unzip wget
+          cd "$RUNNER_TEMP"
+          NDK_VER="27.0.12077973"
+          NDK_ZIP="android-ndk-r27-linux.zip"
+          wget -q "https://dl.google.com/android/repository/${NDK_ZIP}"
+          unzip -q "$NDK_ZIP"
+          echo "ANDROID_NDK_HOME=${RUNNER_TEMP}/android-ndk-r27" >> "$GITHUB_ENV"
 
       - name: Setup CMake
         uses: jwlawson/actions-setup-cmake@v2
@@ -49,6 +110,24 @@ jobs:
       - name: CMake Build
         run: cmake --build --preset ${{ matrix.cmake-build-preset }}
 
+      # Xcode may place the final dylib below a configuration/SDK directory even
+      # when CMake output-directory properties are set. Collect it before checking.
+      - name: Collect iOS native output
+        if: startsWith(matrix.rid, 'ios')
+        run: |
+          native_dir="bindings/CSharp/Cimai/runtimes/${{ matrix.rid }}/native"
+          mkdir -p "$native_dir"
+          find "out/build/${{ matrix.cmake-config-preset }}" -type f -name 'libcimai.dylib' -exec cp -fv {} "$native_dir/" \;
+
+      - name: Verify native output
+        run: |
+          case "${{ matrix.rid }}" in
+            win-*) library=cimai.dll ;;
+            android-*|linux-*) library=libcimai.so ;;
+            *) library=libcimai.dylib ;;
+          esac
+          test -s "bindings/CSharp/Cimai/runtimes/${{ matrix.rid }}/native/$library"
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
@@ -58,6 +137,7 @@ jobs:
             bindings/CSharp/Cimai/runtimes/${{ matrix.rid }}/native/*.dll
             bindings/CSharp/Cimai/runtimes/${{ matrix.rid }}/native/*.so
             bindings/CSharp/Cimai/runtimes/${{ matrix.rid }}/native/*.dylib
+          if-no-files-found: error
           retention-days: 1
 
   pack:
@@ -89,9 +169,12 @@ jobs:
       - name: Extract Version
         id: get_version
         run: |
-          # 从 'v1.2.3' 提取出 '1.2.3'
-          VERSION=${GITHUB_REF_NAME#v}
-          echo "VERSION=${VERSION}" >> $GITHUB_OUTPUT
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            VERSION=${GITHUB_REF_NAME#v}
+          else
+            VERSION="0.0.0-ci.${GITHUB_RUN_NUMBER}"
+          fi
+          echo "VERSION=${VERSION}" >> "$GITHUB_OUTPUT"
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
@@ -107,19 +190,30 @@ jobs:
           sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-21 100
 
       - name: Restore C# Project
-        run: dotnet restore bindings/CSharp/Cimai/Cimai.csproj
+        run: dotnet restore bindings/CSharp/Cimai/Cimai.csproj -p:CimaiDesktopOnly="$CIMAI_DESKTOP_ONLY"
 
       - name: Restore Tools
         run: dotnet tool restore
 
+      # 只为桌面 TFM 编译 .dll（避免在 ubuntu 上缺 ios/android workload 而失败），
+      # 移动平台的 .so / .dylib 已在 build 矩阵中产出并放在 runtimes/<rid>/native/，
+      # pack 阶段会原样把它们塞进 nupkg（csproj 已经把 runtimes\**\* 标记为 Pack=true）。
       - name: Build
-        run: dotnet build bindings/CSharp/Cimai/Cimai.csproj -c Release --no-restore
+        run: dotnet build bindings/CSharp/Cimai/Cimai.csproj -c Release --no-restore -p:CimaiDesktopOnly="$CIMAI_DESKTOP_ONLY"
 
       - name: Pack
-        run: dotnet pack bindings/CSharp/Cimai/Cimai.csproj -c Release -p:Version=${{ steps.get_version.outputs.VERSION }} --no-build -o nupkgs
+        run: dotnet pack bindings/CSharp/Cimai/Cimai.csproj -c Release -p:Version=${{ steps.get_version.outputs.VERSION }} -p:CimaiDesktopOnly="$CIMAI_DESKTOP_ONLY" --no-build -o nupkgs
+
+      - name: Upload NuGet package
+        uses: actions/upload-artifact@v4
+        with:
+          name: nuget-package
+          path: nupkgs/*.nupkg
+          if-no-files-found: error
 
       # Get a short-lived NuGet API key
       - name: NuGet login (OIDC → temp API key)
+        if: startsWith(github.ref, 'refs/tags/v')
         uses: NuGet/login@v1
         id: login
         with:
@@ -127,4 +221,5 @@ jobs:
     
       # Push the package
       - name: NuGet push
+        if: startsWith(github.ref, 'refs/tags/v')
         run: dotnet nuget push nupkgs/*.nupkg --api-key ${{ steps.login.outputs.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate

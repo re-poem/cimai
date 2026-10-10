@@ -1,4 +1,4 @@
-﻿{
+{
   "version": 3,
   "cmakeMinimumRequired": {
     "major": 3,
@@ -79,6 +79,41 @@
       "displayName": "Linux x64",
       "inherits": "linux-base"
     },
+
+    {
+      "name": "android-base",
+      "hidden": true,
+      "inherits": "base",
+      "generator": "Ninja",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      },
+      "cacheVariables": {
+        "CMAKE_TOOLCHAIN_FILE": "$env{ANDROID_NDK_HOME}/build/cmake/android.toolchain.cmake",
+        "CMAKE_ANDROID_NDK": "$env{ANDROID_NDK_HOME}",
+        "CMAKE_BUILD_TYPE": "Release",
+        "ANDROID_PLATFORM": "android-24"
+      }
+    },
+    {
+      "name": "android-arm64",
+      "displayName": "Android arm64-v8a",
+      "inherits": "android-base",
+      "cacheVariables": {
+        "ANDROID_ABI": "arm64-v8a"
+      }
+    },
+    {
+      "name": "android-x64",
+      "displayName": "Android x86_64",
+      "inherits": "android-base",
+      "cacheVariables": {
+        "ANDROID_ABI": "x86_64"
+      }
+    },
+
     {
       "name": "macos-base",
       "hidden": true,
@@ -110,6 +145,61 @@
       "displayName": "macOS Intel",
       "inherits": "macos-base",
       "cacheVariables": { "CMAKE_OSX_ARCHITECTURES": "x86_64" }
+    },
+
+    {
+      "name": "ios-device-base",
+      "hidden": true,
+      "inherits": "base",
+      "generator": "Xcode",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Darwin"
+      },
+      "cacheVariables": {
+        "CMAKE_SYSTEM_NAME": "iOS",
+        "CMAKE_OSX_ARCHITECTURES": "arm64",
+        "CMAKE_OSX_SYSROOT": "iphoneos",
+        "CMAKE_XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH": "NO",
+        "CMAKE_IOS_INSTALL_COMBINED": "NO",
+        "CMAKE_OSX_DEPLOYMENT_TARGET": "15.0",
+        "CMAKE_XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED": "NO"
+      }
+    },
+    {
+      "name": "ios-arm64",
+      "displayName": "iOS device (arm64)",
+      "inherits": "ios-device-base"
+    },
+
+    {
+      "name": "ios-sim-arm64",
+      "displayName": "iOS Simulator (arm64, Apple Silicon)",
+      "inherits": "base",
+      "generator": "Xcode",
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Darwin"
+      },
+      "cacheVariables": {
+        "CMAKE_SYSTEM_NAME": "iOS",
+        "CMAKE_OSX_ARCHITECTURES": "arm64",
+        "CMAKE_OSX_SYSROOT": "iphonesimulator",
+        "CMAKE_IOS_INSTALL_COMBINED": "NO",
+        "CMAKE_OSX_DEPLOYMENT_TARGET": "15.0",
+        "CMAKE_XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH": "NO",
+        "CMAKE_XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED": "NO"
+      }
+    },
+    {
+      "name": "ios-sim-x64",
+      "displayName": "iOS Simulator (x86_64, Intel)",
+      "inherits": "ios-sim-arm64",
+      "cacheVariables": {
+        "CMAKE_OSX_ARCHITECTURES": "x86_64"
+      }
     }
   ],
   "buildPresets": [
@@ -161,6 +251,31 @@
     {
       "name": "macos-x64-release",
       "configurePreset": "macos-x64",
+      "configuration": "Release"
+    },
+    {
+      "name": "android-arm64-release",
+      "configurePreset": "android-arm64",
+      "configuration": "Release"
+    },
+    {
+      "name": "android-x64-release",
+      "configurePreset": "android-x64",
+      "configuration": "Release"
+    },
+    {
+      "name": "ios-arm64-release",
+      "configurePreset": "ios-arm64",
+      "configuration": "Release"
+    },
+    {
+      "name": "ios-sim-arm64-release",
+      "configurePreset": "ios-sim-arm64",
+      "configuration": "Release"
+    },
+    {
+      "name": "ios-sim-x64-release",
+      "configurePreset": "ios-sim-x64",
       "configuration": "Release"
     }
   ]
