@@ -52,10 +52,10 @@ static void parse_metadata_pair(String_View pair, SimaiFile *file)
 		if (diff >= 0)
 		{
 			SimaiChart *chart = file->charts[diff];
-			if (chart == NULL)
+			if (chart == nullptr)
 			{
 				chart = calloc(1, sizeof(*chart));
-				if (chart == NULL) return; // 程序级错误就直接下一个
+				if (chart == nullptr) return; // 程序级错误就直接下一个
 				file->charts[diff] = chart;
 			}
 

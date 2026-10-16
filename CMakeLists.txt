@@ -11,6 +11,10 @@ project("cimai"
     LANGUAGES C
 )
 
+set(CMAKE_C_STANDARD 23)
+set(CMAKE_C_STANDARD_REQUIRED ON)
+set(CMAKE_C_EXTENSIONS OFF)
+
 # 仅为 MSVC 使用 /utf-8
 if(MSVC)
     add_compile_options(/utf-8)

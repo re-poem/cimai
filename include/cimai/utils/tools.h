@@ -6,7 +6,7 @@
 			if ((list_p)->capacity == 0) (list_p)->capacity = 256;\
 			else (list_p)->capacity *= 2;\
 			void *new_items = realloc((list_p)->items , (list_p)->capacity * sizeof(*(list_p)->items)); \
-			if (new_items == NULL) abort(); \
+			if (new_items == nullptr) abort(); \
 			(list_p)->items = new_items;\
 		}\
 		(list_p)->items[(list_p)->count++] = (value);\
