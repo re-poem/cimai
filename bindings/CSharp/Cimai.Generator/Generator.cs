@@ -1,0 +1,114 @@
+using System;
+using System.Linq;
+using System.Text;
+using Microsoft.CodeAnalysis;
+
+namespace Cimai.Generators;
+
+[Generator]
+public sealed class NativeWrapperGenerator : IIncrementalGenerator
+{
+    public void Initialize(IncrementalGeneratorInitializationContext context)
+    {
+        var symbols = context.CompilationProvider.SelectMany(static (compilation, _) =>
+        {
+            var native = compilation.GlobalNamespace.GetNamespaceMembers()
+                .FirstOrDefault(n => n.Name == "Cimai")?.GetNamespaceMembers()
+                .FirstOrDefault(n => n.Name == "Native");
+            return native?.GetTypeMembers() ?? Enumerable.Empty<INamedTypeSymbol>();
+        });
+
+        context.RegisterSourceOutput(symbols, static (production, symbol) =>
+        {
+            if (symbol.TypeKind == TypeKind.Enum)
+                production.AddSource($"{symbol.Name}.Wrapper.g.cs", GenerateEnum(symbol));
+            else if (symbol.TypeKind == TypeKind.Struct && IsWrappedStruct(symbol))
+                production.AddSource($"{symbol.Name}.Wrapper.g.cs", GenerateStruct(symbol));
+        });
+    }
+
+    private static bool IsWrappedStruct(INamedTypeSymbol symbol) =>
+        symbol.Name is "SimaiNote" or "SimaiTiming" or "SimaiCommand" or "SlidePart";
+
+    private static string GenerateEnum(INamedTypeSymbol symbol)
+    {
+        var builder = Header();
+        builder.AppendLine($"public enum {symbol.Name} : {symbol.EnumUnderlyingType?.ToDisplayString() ?? "int"}");
+        builder.AppendLine("{");
+        var fields = symbol.GetMembers().OfType<IFieldSymbol>().Where(f => f.HasConstantValue).ToArray();
+        var firstName = fields.FirstOrDefault()?.Name;
+        var noneSuffix = "_NONE";
+        var prefix = firstName != null && firstName.EndsWith(noneSuffix, StringComparison.Ordinal)
+            ? firstName.Substring(0, firstName.Length - noneSuffix.Length + 1)
+            : string.Empty;
+        foreach (var field in fields)
+        {
+            var name = prefix.Length > 0 && field.Name.StartsWith(prefix, StringComparison.Ordinal)
+                ? field.Name.Substring(prefix.Length)
+                : field.Name;
+            builder.AppendLine($"    {name} = {field.ConstantValue},");
+        }
+        builder.AppendLine("}");
+        return builder.ToString();
+    }
+
+    private static string GenerateStruct(INamedTypeSymbol symbol)
+    {
+        var builder = Header();
+        builder.AppendLine("using System;");
+        builder.AppendLine("using System.Runtime.InteropServices;");
+        builder.AppendLine("using Cimai.Native;");
+        builder.AppendLine();
+        builder.AppendLine("[StructLayout(LayoutKind.Sequential)]");
+        builder.AppendLine($"public readonly struct {symbol.Name}");
+        builder.AppendLine("{");
+        builder.AppendLine($"    private readonly Cimai.Native.{symbol.Name} _native;");
+        builder.AppendLine($"    public {symbol.Name}(Cimai.Native.{symbol.Name} native) => _native = native;");
+        builder.AppendLine($"    public static implicit operator {symbol.Name}(Cimai.Native.{symbol.Name} native) => new(native);");
+        builder.AppendLine($"    public static implicit operator Cimai.Native.{symbol.Name}({symbol.Name} value) => value._native;");
+        foreach (var field in symbol.GetMembers().OfType<IFieldSymbol>().Where(f => !f.IsStatic))
+        {
+            var property = (symbol.Name, field.Name) switch
+            {
+                ("SimaiNote", "pos") => "StartPos",
+                ("SimaiNote", "is_ignore_sv") => "IsIgnoreSV",
+                ("SimaiTiming", "hspeed") => "HSpeed",
+                ("SimaiTiming", "sveloc") => "SVeloc",
+                _ => Pascal(field.Name)
+            };
+            if (field.Type.TypeKind == TypeKind.Enum)
+                builder.AppendLine($"    public Cimai.{field.Type.Name} {property} => (Cimai.{field.Type.Name})_native.{field.Name};");
+            else if (field.Type.Name == "String_View")
+                builder.AppendLine($"    public unsafe ReadOnlySpan<byte> {property} => new(_native.{field.Name}.data, checked((int)_native.{field.Name}.count));");
+            else if (field.Type.Name.EndsWith("_Vec", StringComparison.Ordinal))
+            {
+                var element = field.Type.Name.Substring(0, field.Type.Name.Length - 4);
+                builder.AppendLine($"    public unsafe ReadOnlySpan<Cimai.Native.{element}> {property} => new(_native.{field.Name}.data, checked((int)_native.{field.Name}.len));");
+            }
+            else if (IsBool(field))
+                builder.AppendLine($"    public bool {property} => _native.{field.Name} != 0;");
+            else
+                builder.AppendLine($"    public {field.Type.ToDisplayString()} {property} => _native.{field.Name};");
+        }
+        builder.AppendLine("}");
+        return builder.ToString();
+    }
+
+    private static StringBuilder Header()
+    {
+        var builder = new StringBuilder();
+        builder.AppendLine("// <auto-generated />");
+        builder.AppendLine("namespace Cimai;");
+        builder.AppendLine();
+        return builder;
+    }
+
+    private static string Pascal(string name) =>
+        string.Concat(name.Split(['_'], StringSplitOptions.RemoveEmptyEntries)
+            .Select(p => char.ToUpperInvariant(p[0]) + p.Substring(1)));
+
+    private static bool IsBool(IFieldSymbol field) => field.GetAttributes().Any(a =>
+        (a.AttributeClass?.Name is "NativeTypeNameAttribute" or "NativeTypeName") &&
+        a.ConstructorArguments.Length > 0 &&
+        a.ConstructorArguments[0].Value is string typeName && typeName is "_Bool" or "bool");
+}

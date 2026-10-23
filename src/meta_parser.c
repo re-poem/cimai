@@ -1,6 +1,6 @@
 #include <cimai/meta_parser.h>
 #include <cimai/simai_types.h>
-#include <cimai/utils/tools.h>
+#include <cimai/utils/vec.h>
 
 #include <thirdparty/sv.h>
 
@@ -52,10 +52,10 @@ static void parse_metadata_pair(String_View pair, SimaiFile *file)
 		if (diff >= 0)
 		{
 			SimaiChart *chart = file->charts[diff];
-			if (chart == nullptr)
+			if (chart == NULL)
 			{
 				chart = calloc(1, sizeof(*chart));
-				if (chart == nullptr) return; // 程序级错误就直接下一个
+				if (chart == NULL) return; // 程序级错误就直接下一个
 				file->charts[diff] = chart;
 			}
 
@@ -79,7 +79,7 @@ static void parse_metadata_pair(String_View pair, SimaiFile *file)
 				.key = key,
 				.value = pair
 			};
-			da_append(&file->commands, command);
+			vec_push(&file->commands, command);
 		}
 	}
 }

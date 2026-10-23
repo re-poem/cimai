@@ -1,7 +1,4 @@
 using System;
-using System.Diagnostics.CodeAnalysis;
-using System.Runtime.CompilerServices;
-using System.Text;
 
 namespace Cimai;
 
@@ -11,90 +8,16 @@ public sealed unsafe class SimaiFile : IDisposable
     private readonly SimaiChart?[] _charts = new SimaiChart[(int)SimaiDifficulty.DIFFICULTY_COUNT];
 
     public bool IsDisposed { get; private set; }
-
-
-    public ReadOnlySpan<byte> Title
-    {
-        get
-        {
-            ThrowIfDisposed();
-            return new ReadOnlySpan<byte>(_native.title.data, checked((int)_native.title.count));
-        }
-    }
-
-    public ReadOnlySpan<byte> Artist
-    {
-        get
-        {
-            ThrowIfDisposed();
-            return new ReadOnlySpan<byte>(_native.artist.data, checked((int)_native.artist.count));
-        }
-    }
-
-    public ReadOnlySpan<byte> Des
-    {
-        get
-        {
-            ThrowIfDisposed();
-            return new ReadOnlySpan<byte>(_native.des.data, checked((int)_native.des.count));
-        }
-    }
-
-    public float Offset
-    {
-        get
-        {
-            ThrowIfDisposed();
-            return _native.offset;
-        }
-    }
-
-    public ReadOnlySpan<SimaiChart?> Charts
-    {
-        get
-        {
-            ThrowIfDisposed();
-            return _charts;
-        }
-    }
-
-    public ReadOnlySpan<SimaiCommand> Commands
-    {
-        get
-        {
-            ThrowIfDisposed();
-            return new ReadOnlySpan<SimaiCommand>(_native.commands.items, checked((int)_native.commands.count));
-        }
-    }
-
+    public ReadOnlySpan<byte> Title { get { ThrowIfDisposed(); return new(_native.title.data, checked((int)_native.title.count)); } }
+    public ReadOnlySpan<byte> Artist { get { ThrowIfDisposed(); return new(_native.artist.data, checked((int)_native.artist.count)); } }
+    public ReadOnlySpan<byte> Des { get { ThrowIfDisposed(); return new(_native.des.data, checked((int)_native.des.count)); } }
+    public float Offset { get { ThrowIfDisposed(); return _native.offset; } }
+    public ReadOnlySpan<SimaiChart?> Charts { get { ThrowIfDisposed(); return _charts; } }
+    public ReadOnlySpan<SimaiCommand> Commands { get { ThrowIfDisposed(); return new((SimaiCommand*)_native.commands.data, checked((int)_native.commands.len)); } }
 
     public static readonly SimaiFile Empty = new();
 
-
-    public static SimaiFile Parse(string source) => Parse(Encoding.UTF8.GetBytes(source));
-    public static SimaiFile Parse(byte[] source)
-    {
-        var file = new SimaiFile();
-        fixed (Native.SimaiFile* p = &file._native)
-        fixed (byte* sp = source)
-        {
-            var text = new Native.String_View { count = (nuint)source.Length, data = sp };
-            Native.Methods.cimai_parse(&text, p);
-        }
-
-        for (var i = 0; i < (int)SimaiDifficulty.DIFFICULTY_COUNT; i++)
-        {
-            var chart = file._native.charts[i];
-            if (chart != null)
-            {
-                // 从file摘除，由托管端管理
-                file._charts[i] = new SimaiChart(*chart);
-                Native.Methods.cimai_free(chart);
-                file._native.charts[i] = null;
-            }
-        }
-        return file;
-    }
+    internal SimaiFile() => _native = default;
 
     public void DetachChart(SimaiDifficulty difficulty)
     {
@@ -102,30 +25,44 @@ public sealed unsafe class SimaiFile : IDisposable
         _charts[(int)difficulty] = null;
     }
 
-
-
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private void ThrowIfDisposed()
     {
-        if (IsDisposed)
-            ThrowDisposed();
+        if (IsDisposed) throw new ObjectDisposedException(nameof(SimaiFile));
     }
 
-    [DoesNotReturn]
-    private static void ThrowDisposed()
+    // 调用方必须保证 source 在 file、其 charts 及返回 spans 使用期间固定且不变。
+    public static SimaiFile Parse(byte* source, int length)
     {
-        throw new ObjectDisposedException(nameof(SimaiFile));
+        var file = new SimaiFile();
+        try
+        {
+            var text = new Native.String_View { count = (nuint)length, data = source };
+            fixed (Native.SimaiFile* p = &file._native) Native.Methods.cimai_parse(&text, p);
+            for (var i = 0; i < file._charts.Length; i++)
+            {
+                var chart = file._native.charts[i];
+                if (chart == null) continue;
+                file._charts[i] = new SimaiChart(*chart);
+                file._native.charts[i] = null;
+                Native.Methods.cimai_free(chart);
+            }
+            return file;
+        }
+        catch
+        {
+            file.Dispose();
+            throw;
+        }
     }
 
-    private void Free()
+    private void Free(bool disposing)
     {
         fixed (Native.SimaiFile* p = &_native)
         {
             Native.Methods.cimai_file_release(p);
-            for (var i = 0; i < (int)SimaiDifficulty.DIFFICULTY_COUNT; i++)
+            for (var i = 0; i < _charts.Length; i++)
             {
-                _charts[i]?.Dispose();
+                if (disposing) _charts[i]?.Dispose();
                 _charts[i] = null;
             }
         }
@@ -136,9 +73,9 @@ public sealed unsafe class SimaiFile : IDisposable
     {
         if (IsDisposed) return;
         IsDisposed = true;
-        Free();
+        Free(true);
         GC.SuppressFinalize(this);
     }
 
-    ~SimaiFile() => Free();
+    ~SimaiFile() => Free(false);
 }

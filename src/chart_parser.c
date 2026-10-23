@@ -1,6 +1,6 @@
 #include <cimai/chart_parser.h>
 #include <cimai/simai_types.h>
-#include <cimai/utils/tools.h>
+#include <cimai/utils/vec.h>
 #include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
@@ -42,26 +42,6 @@ typedef enum
 static inline bool parse_float_trimmed(String_View sv, float *out)
 {
 	return sv_try_parse_float(sv_trim(sv), out);
-}
-// 把当前 timing 的 notes 复制进 arena，让每个 timing 拥有独立且稳定的数组，
-// 避免所有 timing 共享同一个 notes.items，后续 realloc 移动后导致悬垂。
-static inline SimaiNoteList notes_into_arena(Arena *arena, SimaiNoteList *notes)
-{
-	SimaiNoteList owned = { 0 };
-	size_t count = notes->count;
-	if (count > 0)
-	{
-		size_t bytes = count * sizeof(SimaiNote);
-		SimaiNote *items = arena_alloc(arena, bytes);
-		memcpy(items, notes->items, bytes);
-		owned = (SimaiNoteList){
-			.items = items,
-			.count = count,
-			.capacity = count,
-		};
-	}
-	notes->count = 0; // 复用 scratch 缓冲
-	return owned;
 }
 
 
@@ -351,47 +331,13 @@ static bool get_note_pos(String_View text, size_t *cursor, SimaiNotePos *end)
 	return true;
 }
 
-static void append_slide_part(Arena *arena, SlidePartList *parts, SlidePart part)
-{
-	if (parts->count == parts->capacity)
-	{
-		size_t capacity = parts->capacity ? parts->capacity * 2 : 4;
-		SlidePart *items = arena_alloc(arena, capacity * sizeof(*items));
-		if (parts->count)
-			memcpy(items, parts->items, parts->count * sizeof(*items));
-		parts->items = items;
-		parts->capacity = capacity;
-	}
-	parts->items[parts->count++] = part;
-}
-
 // 解析两个逗号间所组成的一个timing，跳转到下一个timing开头（即下一个 , 或 ` 后）（遇到错误时恒跳转到下一个 , 防止越界访问）
 static ParseNoteRetCode parse_timing(
 	const Context ctx, String_View *text,
-	SimaiNoteList *notes, Arena *_arena)
+	SimaiNote_Vec *notes, SlidePart_Vec *slide_parts)
 {
-
-#define EMIT_NOTE \
-	do { \
-		if (note.type != NONE) \
-		{ \
-			if (note.type == SLIDE) \
-			{ \
-				if (!isnan(hold_slide_duration)) \
-				{ \
-					note.slide_shoot_delay = hold_slide_duration; \
-					hold_slide_duration = NAN; \
-				} \
-			} \
-			if (note.type != SLIDE || !invalid_slide) \
-				da_append(notes, note); \
-			note = (SimaiNote){ 0 }; \
-		} \
-		invalid_slide = false; \
-		hold_slide_duration = NAN; \
-	} while (0)
-
-
+	const size_t notes_first = notes->len;
+	const size_t slide_parts_first = slide_parts->len;
 
 	// 连写双押
 	if (text->count >= 3 &&
@@ -401,11 +347,12 @@ static ParseNoteRetCode parse_timing(
 	{
 		SimaiNote a = { .type = TAP, .pos = (SimaiNotePos)(BTN1 + text->data[0] - '1') };
 		SimaiNote b = { .type = TAP, .pos = (SimaiNotePos)(BTN1 + text->data[1] - '1') };
-		da_append(notes, a);
-		da_append(notes, b);
+		vec_push(notes, a, b);
 		sv_chop_left(text, 3); // 吃掉 "XY,"
 		return CIMAI_NOTE_SUCCESS;
 	}
+
+	ParseNoteRetCode error = CIMAI_NOTE_ERR_COMMA_NOT_FOUND;
 
 	size_t i = 0;
 	SimaiNote note = { 0 };
@@ -419,6 +366,29 @@ static ParseNoteRetCode parse_timing(
 	bool is_slide_no_star_fade = false;
 	double hold_slide_duration = NAN;
 	bool invalid_slide = false;
+
+	// 提交 note 宏
+#define EMIT_NOTE \
+	do { \
+		if (note.type != SLIDE || invalid_slide) \
+		{ \
+			if (note.slide_parts_count) \
+				slide_parts->len = note.slide_parts_first; \
+			note.slide_parts_first = note.slide_parts_count = 0; \
+		} \
+		if (note.type != NONE && !invalid_slide) \
+		{ \
+			if (note.type == SLIDE && !isnan(hold_slide_duration)) \
+				note.slide_shoot_delay = hold_slide_duration; \
+			vec_push(notes, note); \
+		} \
+		note = (SimaiNote){ 0 }; \
+		invalid_slide = false; \
+		hold_slide_duration = NAN; \
+	} while (0)
+
+
+
 
 	for (; i < text->count; i++)
 	{
@@ -435,8 +405,8 @@ static ParseNoteRetCode parse_timing(
 		case '[':
 			if (text->count <= i + 1)
 			{
-				sv_chop_by_delim(text, ',');
-				return CIMAI_NOTE_ERR_DURATION_NOT_CLOSED;
+				error = CIMAI_NOTE_ERR_DURATION_NOT_CLOSED;
+				goto fail;
 			}
 
 			i++;
@@ -454,8 +424,8 @@ static ParseNoteRetCode parse_timing(
 			}
 			if (end == -1)
 			{
-				sv_chop_by_delim(text, ',');
-				return CIMAI_NOTE_ERR_DURATION_NOT_CLOSED;
+				error = CIMAI_NOTE_ERR_DURATION_NOT_CLOSED;
+				goto fail;
 			}
 
 			String_View dc = {
@@ -535,8 +505,8 @@ static ParseNoteRetCode parse_timing(
 			if (IS_TOUCH_AREA_CHAR(type) && note.type == NONE)
 				goto note_head;
 
-			int from = note.slide_parts.count
-				? note_pos_offset(note.slide_parts.items[note.slide_parts.count - 1].end)
+			int from = note.slide_parts_count
+				? note_pos_offset(slide_parts->data[note.slide_parts_first + note.slide_parts_count - 1].end)
 				: note_pos_offset(note.pos);
 			if (note.type != SLIDE)
 			{
@@ -569,7 +539,7 @@ static ParseNoteRetCode parse_timing(
 				mid = text->data[++i] - '0';
 			}
 
-			SlidePart part = { .end = SLIDE_NODE_NONE };
+			SlidePart part = { .end = NOTE_POS_NONE };
 			size_t cursor = i + 1;
 			if (!get_note_pos(*text, &cursor, &part.end))
 			{
@@ -611,7 +581,10 @@ static ParseNoteRetCode parse_timing(
 				invalid_slide = true;
 			if (invalid_slide) break;
 
-			append_slide_part(_arena, &note.slide_parts, part);
+			if (note.slide_parts_count == 0)
+				note.slide_parts_first = slide_parts->len;
+			vec_push(slide_parts, part);
+			note.slide_parts_count++;
 			break;
 		}
 
@@ -631,9 +604,9 @@ static ParseNoteRetCode parse_timing(
 
 		case '/':
 			String_View cur_note = sv_from_parts(note_start, text->data + i - note_start);
-			if (sv_eq(last_note, cur_note))
+			if (notes->len > notes_first && sv_eq(last_note, cur_note))
 			{
-				notes->items[notes->count - 1].can_be_folded = true;
+				notes->data[notes->len - 1].can_be_folded = true;
 			}
 			last_note = cur_note;
 
@@ -669,19 +642,24 @@ static ParseNoteRetCode parse_timing(
 		}
 	}
 
+fail:
+	// 回滚本组追加的范围，保留此前 timing 已提交的音符和路径。
+	notes->len = notes_first;
+	slide_parts->len = slide_parts_first;
 	sv_chop_by_delim(text, ',');
-	return CIMAI_NOTE_ERR_COMMA_NOT_FOUND;
+	return error;
+#undef EMIT_NOTE
 }
 
 
-static void calc_each(const SimaiNoteList notes)
+static void calc_each(SimaiNote_Vec *notes, size_t first)
 {
 	int note_count = 0;
 	int slide_count = 0;
 
-	for (size_t i = 0; i < notes.count; i++)
+	for (size_t i = first; i < notes->len; i++)
 	{
-		SimaiNote o = notes.items[i];
+		SimaiNote o = notes->data[i];
 		if (!o.is_mine)
 		{
 			if (o.type == SLIDE)
@@ -698,9 +676,9 @@ static void calc_each(const SimaiNoteList notes)
 	bool note_each = note_count > 1;
 	bool slide_each = slide_count > 1;
 
-	for (size_t i = 0; i < notes.count; i++)
+	for (size_t i = first; i < notes->len; i++)
 	{
-		SimaiNote *o = &notes.items[i];
+		SimaiNote *o = &notes->data[i];
 		if (o->type == SLIDE)
 		{
 			o->is_each = slide_each;
@@ -727,11 +705,10 @@ void cimai_parse_chart(SimaiChart *chart)
 
 	String_View text = chart->fumen;
 
-	Arena *_arena = &chart->_arena;
-	SimaiTimingList *timings = &chart->timings;
+	SimaiTiming_Vec *timings = &chart->timings;
 
-	SimaiTiming timing = { 0 };
-	SimaiNoteList notes = { 0 };
+	SimaiNote_Vec *notes = &chart->notes;
+	SlidePart_Vec *slide_parts = &chart->slide_parts;
 
 	const char *chart_start = text.data;
 	const char *last_timing_end = text.data;
@@ -763,58 +740,42 @@ void cimai_parse_chart(SimaiChart *chart)
 				char c = text.data[0];
 				if (IS_NOTE_CHAR(c) || IS_TOUCH_AREA_CHAR(c))
 				{
-					ParseNoteRetCode ret = parse_timing(ctx, &text, &notes, _arena);
-					calc_each(notes);
-					switch (ret)
+					// 伪双的每组独立提交范围，依次晚一个 128 分音符。
+					size_t fake_count = 0;
+					for (;;)
 					{
-					case CIMAI_NOTE_SUCCESS:
-						timing.time = ctx.time;
-						timing.bpm = ctx.bpm;
-						timing.hspeed = ctx.hspeed;
-						timing.sveloc = ctx.sveloc;
-						size_t count = text.data - last_timing_end;
-						timing.content = sv_from_parts(last_timing_end, count);
-						last_timing_end = text.data;
-						timing.fumen_pos = text.data - chart_start;
-						timing.sign_num = ctx.sign_num;
-						timing.sign_den = ctx.sign_den;
-						timing.notes = notes_into_arena(_arena, &notes);
-						ctx.time += ctx.seconds_per_beat;
-						da_append(timings, timing);
-						break;
-					case CIMAI_NOTE_FAKE_EACH:
-						// 伪双（pseudo-EACH）：` 分隔的每组音符依次晚一个 128 分音符
-						// （1.875 / bpm，与 MajSimaiX 一致）。首组由外层 parse_timing
-						// 解析，落在段落起点；此前实现把首组与第二组合并、整体偏移
-						// 一个间隔，并错误地标记为 EACH。
-						int fake_count = 0;
-						for (;;)
+						size_t notes_first = notes->len;
+						ParseNoteRetCode ret = parse_timing(ctx, &text, notes, slide_parts);
+						if (ret <= 0)
 						{
-							calc_each(notes);
-							timing.time = ctx.time + fake_count * (60 / ctx.bpm * 4 / 128);
-							timing.bpm = ctx.bpm;
-							timing.hspeed = ctx.hspeed;
-							timing.sveloc = ctx.sveloc;
-							size_t count = text.data - last_timing_end;
-							timing.content = sv_from_parts(last_timing_end, count);
-							last_timing_end = text.data;
-							timing.fumen_pos = text.data - chart_start;
-							timing.sign_num = ctx.sign_num;
-							timing.sign_den = ctx.sign_den;
-							timing.notes = notes_into_arena(_arena, &notes);
-							da_append(timings, timing);
-
-							if (ret != CIMAI_NOTE_FAKE_EACH)
-								break;
-							ret = parse_timing(ctx, &text, &notes, _arena);
-							if (ret <= 0)
-								break;
-							fake_count++;
+							// 消费了逗号的错误组仍占一拍；末尾未闭合组不推进。
+							if (text.data > chart_start && text.data[-1] == ',')
+								ctx.time += ctx.seconds_per_beat;
+							break;
 						}
-						ctx.time += ctx.seconds_per_beat;
-						break;
-					default:
-						break;
+
+						calc_each(notes, notes_first);
+						SimaiTiming timing = {
+							.time = ctx.time + fake_count * (60 / ctx.bpm * 4 / 128),
+							.bpm = ctx.bpm,
+							.hspeed = ctx.hspeed,
+							.sveloc = ctx.sveloc,
+							.sign_num = ctx.sign_num,
+							.sign_den = ctx.sign_den,
+							.content = sv_from_parts(last_timing_end, text.data - last_timing_end),
+							.fumen_pos = text.data - chart_start,
+							.notes_first = notes_first,
+							.notes_count = notes->len - notes_first,
+						};
+						last_timing_end = text.data;
+						vec_push(timings, timing);
+
+						if (ret != CIMAI_NOTE_FAKE_EACH)
+						{
+							ctx.time += ctx.seconds_per_beat;
+							break;
+						}
+						fake_count++;
 					}
 				}
 				else if (c == ',')
@@ -838,16 +799,14 @@ void cimai_parse_chart(SimaiChart *chart)
 		}
 	}
 
-	// 释放 parse_timing 用过的 scratch notes 堆缓冲
-	free(notes.items);
 }
 
 // 释放 chart 内部由 cimai_parse_chart 分配的资源。
 void cimai_chart_release(SimaiChart *chart)
 {
-	if (chart == nullptr)
+	if (chart == NULL)
 		return;
-	free(chart->timings.items);
-	chart->timings = (SimaiTimingList){ 0 };
-	arena_free(&chart->_arena);
+	vec_free(&chart->slide_parts);
+	vec_free(&chart->notes);
+	vec_free(&chart->timings);
 }

@@ -1,7 +1,4 @@
 using System;
-using System.Diagnostics.CodeAnalysis;
-using System.Runtime.CompilerServices;
-using System.Text;
 
 namespace Cimai;
 
@@ -10,83 +7,46 @@ public sealed unsafe class SimaiChart : IDisposable
     private Native.SimaiChart _native;
     public bool IsDisposed { get; private set; }
 
-    public ReadOnlySpan<byte> Level
-    {
-        get
-        {
-            ThrowIfDisposed();
-            return new ReadOnlySpan<byte>(_native.level.data, checked((int)_native.level.count));
-        }
-    }
-
-    public ReadOnlySpan<byte> Des
-    {
-        get
-        {
-            ThrowIfDisposed();
-            return new ReadOnlySpan<byte>(_native.des.data, checked((int)_native.des.count));
-        }
-    }
-
-    public ReadOnlySpan<byte> Fumen
-    {
-        get
-        {
-            ThrowIfDisposed();
-            return new ReadOnlySpan<byte>(_native.fumen.data, checked((int)_native.fumen.count));
-        }
-    }
-
-    public ReadOnlySpan<SimaiTiming> Timings
-    {
-        get
-        {
-            ThrowIfDisposed();
-            return new ReadOnlySpan<SimaiTiming>(_native.timings.items, checked((int)_native.timings.count));
-        }
-    }
-
-
+    public ReadOnlySpan<byte> Level { get { ThrowIfDisposed(); return new(_native.level.data, checked((int)_native.level.count)); } }
+    public ReadOnlySpan<byte> Des { get { ThrowIfDisposed(); return new(_native.des.data, checked((int)_native.des.count)); } }
+    public ReadOnlySpan<byte> Fumen { get { ThrowIfDisposed(); return new(_native.fumen.data, checked((int)_native.fumen.count)); } }
+    public ReadOnlySpan<SimaiTiming> Timings { get { ThrowIfDisposed(); return new((SimaiTiming*)_native.timings.data, checked((int)_native.timings.len)); } }
+    public ReadOnlySpan<SimaiNote> Notes { get { ThrowIfDisposed(); return new((SimaiNote*)_native.notes.data, checked((int)_native.notes.len)); } }
+    public ReadOnlySpan<SlidePart> SlideParts { get { ThrowIfDisposed(); return new((SlidePart*)_native.slide_parts.data, checked((int)_native.slide_parts.len)); } }
 
     public static readonly SimaiChart Empty = new();
 
     internal SimaiChart() => _native = default;
-    // 用于从file中摘除chart
     internal SimaiChart(Native.SimaiChart native) => _native = native;
-    public static SimaiChart Parse(string source) => Parse(Encoding.UTF8.GetBytes(source));
-    public static SimaiChart Parse(byte[] source)
+
+    internal void ThrowIfDisposed()
+    {
+        if (IsDisposed) throw new ObjectDisposedException(nameof(SimaiChart));
+    }
+
+    // 调用方必须保证 source 在 chart 及其返回的 span 使用期间固定且不变。
+    public static SimaiChart Parse(byte* source, int length)
     {
         var chart = new SimaiChart();
-        fixed (Native.SimaiChart* p = &chart._native)
-        fixed (byte* sp = source)
+        try
         {
-            p->fumen = new Native.String_View { count = (nuint)source.Length, data = sp };
-            Native.Methods.cimai_parse_chart(p);
+            fixed (Native.SimaiChart* p = &chart._native)
+            {
+                p->fumen = new Native.String_View { count = (nuint)length, data = source };
+                Native.Methods.cimai_parse_chart(p);
+            }
+            return chart;
         }
-        return chart;
-    }
-
-
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private void ThrowIfDisposed()
-    {
-        if (IsDisposed)
-            ThrowDisposed();
-    }
-
-    [DoesNotReturn]
-    private static void ThrowDisposed()
-    {
-        throw new ObjectDisposedException(nameof(SimaiChart));
+        catch
+        {
+            chart.Dispose();
+            throw;
+        }
     }
 
     private void Free()
     {
-        fixed (Native.SimaiChart* p = &_native)
-        {
-            Native.Methods.cimai_chart_release(p);
-        }
+        fixed (Native.SimaiChart* p = &_native) Native.Methods.cimai_chart_release(p);
         _native = default;
     }
 

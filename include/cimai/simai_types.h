@@ -1,13 +1,14 @@
 #pragma once
 
-#include <thirdparty/arena.h>
 #include <thirdparty/sv.h>
 
 #include <stddef.h>
 #include <stdint.h>
 
+#include <cimai/utils/vec.h>
 
-typedef enum : uint8_t
+
+typedef enum
 {
 	NONE,
 	TAP,
@@ -19,7 +20,7 @@ typedef enum : uint8_t
 
 typedef enum
 {
-	SLIDE_NODE_NONE,
+	NOTE_POS_NONE,
 
 	BTN1,
 	BTN2,
@@ -65,7 +66,6 @@ typedef enum
 	E7,
 	E8,
 } SimaiNotePos;
-
 typedef enum
 {
 	SLIDE_NONE,
@@ -91,17 +91,13 @@ typedef enum
 	Q_CMD,
 	K_CMD,
 } SlideType;
+
 typedef struct
 {
 	SlideType type;
 	SimaiNotePos end;
 } SlidePart;
-typedef struct
-{
-	SlidePart *items;
-	size_t count;
-	size_t capacity;
-} SlidePartList;
+DEFINE_VEC(SlidePart, SlidePart_Vec);
 
 // 默认初始化为全0即可，排列顺序尽量可读了
 typedef struct
@@ -129,19 +125,15 @@ typedef struct
 	//slide
 	bool is_slide_no_star_fade;
 	double slide_shoot_delay;
-	SlidePartList slide_parts;
+	size_t slide_parts_first;
+	size_t slide_parts_count;
 
 	//touch
 	bool is_hanabi;
 
 	bool can_be_folded;
 } SimaiNote;
-typedef struct
-{
-	SimaiNote *items;
-	size_t count;
-	size_t capacity;
-} SimaiNoteList;
+DEFINE_VEC(SimaiNote, SimaiNote_Vec);
 
 typedef struct
 {
@@ -149,18 +141,15 @@ typedef struct
 	float bpm;
 	float hspeed;
 	float sveloc;
-	String_View content;
-	size_t fumen_pos;
 	uint8_t sign_num;
 	uint8_t sign_den;
-	SimaiNoteList notes;
+	String_View content;
+	size_t fumen_pos;
+
+	size_t notes_first;
+	size_t notes_count;
 } SimaiTiming;
-typedef struct
-{
-	SimaiTiming *items;
-	size_t count;
-	size_t capacity;
-} SimaiTimingList;
+DEFINE_VEC(SimaiTiming, SimaiTiming_Vec);
 
 typedef enum
 {
@@ -181,10 +170,9 @@ typedef struct
 	String_View des;
 	String_View fumen;
 
-	// 存储notes.slide_content
-	Arena _arena;
-
-	SimaiTimingList timings;
+	SimaiTiming_Vec timings;
+	SimaiNote_Vec notes;
+	SlidePart_Vec slide_parts;
 } SimaiChart;
 
 typedef struct
@@ -192,12 +180,7 @@ typedef struct
 	String_View key;
 	String_View value;
 } SimaiCommand;
-typedef struct
-{
-	SimaiCommand *items;
-	size_t count;
-	size_t capacity;
-} SimaiCommandList;
+DEFINE_VEC(SimaiCommand, SimaiCommand_Vec);
 
 typedef struct
 {
@@ -207,5 +190,5 @@ typedef struct
 	float offset;
 	SimaiChart *charts[DIFFICULTY_COUNT];
 
-	SimaiCommandList commands;
+	SimaiCommand_Vec commands;
 } SimaiFile;

@@ -3,26 +3,22 @@
 	<PropertyGroup>
 		<!-- CI 包构建在 Linux 上只编译无需 Android/iOS workload 的桌面 TFM。 -->
 		<TargetFrameworks Condition="'$(CimaiDesktopOnly)' == 'true'">netstandard2.1;net9.0;net10.0</TargetFrameworks>
-		<TargetFrameworks Condition="'$(CimaiDesktopOnly)' != 'true'">netstandard2.1;net9.0;net9.0-android;net9.0-ios;net10.0</TargetFrameworks>
+		<TargetFrameworks Condition="'$(CimaiDesktopOnly)' != 'true'">netstandard2.1;net9.0;net10.0-android;net10.0-ios;net10.0</TargetFrameworks>
 		<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
 		<LangVersion>latest</LangVersion>
 		<Nullable>enable</Nullable>
 		<ImplicitUsings>disable</ImplicitUsings>
 		<RootNamespace>Cimai</RootNamespace>
 		<AssemblyName>Cimai</AssemblyName>
-
 		<!-- 显式管理编译项，保证首次 clone（Native.g.cs 尚不存在）也能正确编译 -->
 		<EnableDefaultCompileItems>false</EnableDefaultCompileItems>
 
 		<!--构建时不要打包-->
 		<GeneratePackageOnBuild>false</GeneratePackageOnBuild>
-
 		<Title>$(AssemblyName)</Title>
 		<Authors>RE_Poem</Authors>
 		<Description>Fast and lightweight Simai chart parser written in pure C.</Description>
 		<PackageProjectUrl>https://github.com/re-poem/cimai</PackageProjectUrl>
-
-		<!-- 移动平台最低系统版本，跟 CMakePresets.json 的 ANDROID_API_LEVEL / iOS deployment target 对齐 -->
 		<SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-android'))">24.0</SupportedOSPlatformVersion>
 		<SupportedOSPlatformVersion Condition="$(TargetFramework.Contains('-ios'))">15.0</SupportedOSPlatformVersion>
 	</PropertyGroup>
@@ -31,21 +27,19 @@
 		<Compile Include="Helper.cs" />
 		<Compile Include="Native.cs" />
 		<Compile Include="SimaiChart.cs" />
-		<Compile Include="SimaiCommand.cs" />
-		<Compile Include="SimaiDifficulty.cs" />
 		<Compile Include="SimaiFile.cs" />
-		<Compile Include="SimaiNote.cs" />
-		<Compile Include="SimaiNoteType.cs" />
-		<Compile Include="SimaiTiming.cs" />
 		<Compile Include="Native.g.cs" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\Cimai.Generator\Cimai.Generator.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
 	</ItemGroup>
 
 	<Target Name="GenerateBinding" BeforeTargets="DispatchToInnerBuilds">
 		<Exec Command="dotnet tool run ClangSharpPInvokeGenerator @generate.rsp" WorkingDirectory="$(MSBuildProjectDirectory)" />
 	</Target>
 
-	<ItemGroup>
-		<!-- NuGet runtime assets must contain only loadable native libraries. -->
+	<ItemGroup Condition="$([System.String]::Copy('$(TargetFramework)').Contains('-android')) != 'True'">
 		<Content Include="runtimes\**\*.dll;runtimes\**\*.so;runtimes\**\*.dylib">
 			<Pack>true</Pack>
 			<PackagePath>runtimes</PackagePath>
