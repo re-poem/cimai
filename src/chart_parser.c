@@ -541,14 +541,27 @@ static ParseNoteRetCode parse_timing(
 			}
 
 			SlidePart part = { .end = NOTE_POS_NONE };
-			size_t cursor = i + 1;
-			if (!get_note_pos(*text, &cursor, &part.end))
+			int to = 0;
+			if (type == 'C')
 			{
-				invalid_slide = true;
-				break;
+				// C 是圆心节点，本身不带编号（参考 SlideCodeParser：digit should not follow 'C'）
+				if (i + 1 < text->count && isdigit((unsigned char)text->data[i + 1]))
+				{
+					invalid_slide = true;
+					break;
+				}
 			}
-			i = cursor - 1; // 外层 for 还会推进一次，保留下一个未消费字符。
-			int to = note_pos_offset(part.end);
+			else
+			{
+				size_t cursor = i + 1;
+				if (!get_note_pos(*text, &cursor, &part.end))
+				{
+					invalid_slide = true;
+					break;
+				}
+				i = cursor - 1; // 外层 for 还会推进一次，保留下一个未消费字符。
+				to = note_pos_offset(part.end);
+			}
 
 			switch (type)
 			{
@@ -587,10 +600,11 @@ static ParseNoteRetCode parse_timing(
 			vec_push(slide_parts, part);
 			note.slide_parts_count++;
 
-			// 除 K 以外的 CMD 后面连写的数字，每个都表示把这个 CMD 重复到该终点：
+			// 除 K、C 以外的 CMD 后面连写的数字，每个都表示把这个 CMD 重复到该终点：
 			// 1A35K7 == 1A3A5K7，1P24K4 == 1P2P4K4。
 			// K 是路径的终点命令，它后面的数字是自己的终点（K7），不做重复。
-			if (IS_SLIDE_CODE_CHAR(type) && type != 'K')
+			// C 是圆心节点，本身不带编号，后面也不跟数字。
+			if (IS_SLIDE_CODE_CHAR(type) && type != 'K' && type != 'C')
 			{
 				while (i + 1 < text->count && IS_NOTE_CHAR(text->data[i + 1]))
 				{
