@@ -8,6 +8,8 @@
 #include <math.h>
 
 #define IS_NOTE_CHAR(c) ((c) >= '1' && (c) <= '8')
+// P/Q 的圆编号支持 0~9（0 是中心圆，9 是外圈）
+#define IS_ORBIT_CHAR(c) ((c) >= '0' && (c) <= '9')
 #define IS_TOUCH_AREA_CHAR(c) ((c) >= 'A' && (c) <= 'E')
 // 通常来讲ABC判断是冗余的所以放后边
 #define IS_SLIDE_CODE_CHAR(c) ((c) == 'P' || (c) == 'Q' || (c) == 'K' || (c) == 'A' || (c) == 'B' || (c) == 'C')
@@ -293,7 +295,7 @@ static SlideType translate_circle(char shape, int from, int to)
 // 返回环上的位置编号
 static int note_pos_offset(SimaiNotePos node)
 {
-	if (node >= BTN1 && node <= BTN8) return node - BTN1 + 1;
+	if (node >= BTN0 && node <= BTN9) return node - BTN0;
 	if (node >= A1 && node <= A8) return node - A1 + 1;
 	if (node >= B1 && node <= B8) return node - B1 + 1;
 	if (node >= D1 && node <= D8) return node - D1 + 1;
@@ -540,7 +542,7 @@ static ParseNoteRetCode parse_timing(
 				mid = text->data[++i] - '0';
 			}
 
-			SlidePart part = { .end = NOTE_POS_NONE };
+			SlidePart part = { .end = BTN0 };
 			int to = 0;
 			if (type == 'C')
 			{
@@ -550,6 +552,18 @@ static ParseNoteRetCode parse_timing(
 					invalid_slide = true;
 					break;
 				}
+			}
+			else if (type == 'P' || type == 'Q')
+			{
+				// P/Q 后面是圆编号 0~9：0 是中心圆，9 是外圈，1~8 是 pp/qq 圆
+				if (i + 1 >= text->count || !IS_ORBIT_CHAR(text->data[i + 1]))
+				{
+					invalid_slide = true;
+					break;
+				}
+				i++;
+				part.end = (SimaiNotePos)(BTN0 + text->data[i] - '0');
+				to = note_pos_offset(part.end);
 			}
 			else
 			{
@@ -590,8 +604,8 @@ static ParseNoteRetCode parse_timing(
 			case 'K': part.type = K_CMD; break;
 			}
 
-			bool needs_from = type == '<' || type == '>' || type == '^' || type == 'V';
-			if (part.type == SLIDE_NONE || (needs_from && from == 0) || (type == '^' && to == 0))
+			// 不校验 from：BTN0 也是一个合法起点，能不能渲染是调用端的事
+			if (part.type == SLIDE_NONE || (type == '^' && to == 0))
 				invalid_slide = true;
 			if (invalid_slide) break;
 
@@ -604,12 +618,17 @@ static ParseNoteRetCode parse_timing(
 			// 1A35K7 == 1A3A5K7，1P24K4 == 1P2P4K4。
 			// K 是路径的终点命令，它后面的数字是自己的终点（K7），不做重复。
 			// C 是圆心节点，本身不带编号，后面也不跟数字。
+			// P/Q 的圆编号是 0~9，A/B 的节点编号是 1~8。
 			if (IS_SLIDE_CODE_CHAR(type) && type != 'K' && type != 'C')
 			{
-				while (i + 1 < text->count && IS_NOTE_CHAR(text->data[i + 1]))
+				bool orbit = type == 'P' || type == 'Q';
+				while (i + 1 < text->count &&
+					(orbit ? IS_ORBIT_CHAR(text->data[i + 1]) : IS_NOTE_CHAR(text->data[i + 1])))
 				{
 					i++;
-					SimaiNotePos repeat_end = (SimaiNotePos)(BTN1 + text->data[i] - '1');
+					SimaiNotePos repeat_end = orbit
+						? (SimaiNotePos)(BTN0 + text->data[i] - '0')
+						: (SimaiNotePos)(BTN1 + text->data[i] - '1');
 					vec_push(slide_parts, ((SlidePart){ .type = part.type, .end = repeat_end }));
 					note.slide_parts_count++;
 				}

@@ -20,8 +20,7 @@ typedef enum
 
 typedef enum
 {
-	NOTE_POS_NONE,
-
+	BTN0,
 	BTN1,
 	BTN2,
 	BTN3,
@@ -30,6 +29,7 @@ typedef enum
 	BTN6,
 	BTN7,
 	BTN8,
+	BTN9,
 
 	A1,
 	A2,
