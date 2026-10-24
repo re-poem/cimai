@@ -347,7 +347,8 @@ static ParseNoteRetCode parse_timing(
 	{
 		SimaiNote a = { .type = TAP, .pos = (SimaiNotePos)(BTN1 + text->data[0] - '1') };
 		SimaiNote b = { .type = TAP, .pos = (SimaiNotePos)(BTN1 + text->data[1] - '1') };
-		vec_push(notes, a, b);
+		vec_push(notes, a);
+		vec_push(notes, b);
 		sv_chop_left(text, 3); // 吃掉 "XY,"
 		return CIMAI_NOTE_SUCCESS;
 	}
