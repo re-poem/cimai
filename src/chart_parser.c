@@ -586,6 +586,20 @@ static ParseNoteRetCode parse_timing(
 				note.slide_parts_first = slide_parts->len;
 			vec_push(slide_parts, part);
 			note.slide_parts_count++;
+
+			// 除 K 以外的 CMD 后面连写的数字，每个都表示把这个 CMD 重复到该终点：
+			// 1A35K7 == 1A3A5K7，1P24K4 == 1P2P4K4。
+			// K 是路径的终点命令，它后面的数字是自己的终点（K7），不做重复。
+			if (IS_SLIDE_CODE_CHAR(type) && type != 'K')
+			{
+				while (i + 1 < text->count && IS_NOTE_CHAR(text->data[i + 1]))
+				{
+					i++;
+					SimaiNotePos repeat_end = (SimaiNotePos)(BTN1 + text->data[i] - '1');
+					vec_push(slide_parts, ((SlidePart){ .type = part.type, .end = repeat_end }));
+					note.slide_parts_count++;
+				}
+			}
 			break;
 		}
 
