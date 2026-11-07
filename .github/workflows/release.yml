@@ -41,7 +41,7 @@ jobs:
             rid: linux-x64
             cmake-build-preset: linux-x64-release
             cmake-config-preset: linux-x64
-          # Android (NDK r27 on ubuntu-latest)
+          # Android (NDK r28c on ubuntu-latest; r28+ emits 16 KB page aligned .so)
           - os: ubuntu-latest
             rid: android-arm64
             cmake-build-preset: android-arm64-release
@@ -85,7 +85,9 @@ jobs:
           xcrun --sdk iphoneos --show-sdk-path
           xcrun --sdk iphonesimulator --show-sdk-path
 
-      # for Android build: install Android NDK r27 + cmake + ninja
+      # for Android build: install Android NDK r28c + cmake + ninja
+      # r28 is the first NDK that aligns 64-bit libraries to 16 KB pages by default,
+      # which Google Play requires for apps targeting Android 15+.
       - name: Setup Android NDK
         if: matrix.setup-android-ndk == 'true'
         run: |
@@ -93,11 +95,11 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y -qq ninja-build unzip wget
           cd "$RUNNER_TEMP"
-          NDK_VER="27.0.12077973"
-          NDK_ZIP="android-ndk-r27-linux.zip"
+          NDK_VER="28.2.13676358"
+          NDK_ZIP="android-ndk-r28c-linux.zip"
           wget -q "https://dl.google.com/android/repository/${NDK_ZIP}"
           unzip -q "$NDK_ZIP"
-          echo "ANDROID_NDK_HOME=${RUNNER_TEMP}/android-ndk-r27" >> "$GITHUB_ENV"
+          echo "ANDROID_NDK_HOME=${RUNNER_TEMP}/android-ndk-r28c" >> "$GITHUB_ENV"
 
       - name: Setup CMake
         uses: jwlawson/actions-setup-cmake@v2

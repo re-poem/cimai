@@ -629,7 +629,7 @@ static ParseNoteRetCode parse_timing(
 					SimaiNotePos repeat_end = orbit
 						? (SimaiNotePos)(BTN0 + text->data[i] - '0')
 						: (SimaiNotePos)(BTN1 + text->data[i] - '1');
-					vec_push(slide_parts, ((SlidePart){ .type = part.type, .end = repeat_end }));
+					vec_push(slide_parts, ((SlidePart){.type = part.type, .end = repeat_end }));
 					note.slide_parts_count++;
 				}
 			}
@@ -829,7 +829,19 @@ void cimai_parse_chart(SimaiChart *chart)
 				else if (c == ',')
 				{
 					// 空逗号
+					SimaiTiming timing = {
+						.time = ctx.time,
+						.bpm = ctx.bpm,
+						.hspeed = ctx.hspeed,
+						.sveloc = ctx.sveloc,
+						.sign_num = ctx.sign_num,
+						.sign_den = ctx.sign_den,
+						.content = sv_from_parts(last_timing_end, text.data - last_timing_end),
+						.fumen_pos = text.data - chart_start,
+					};
 					ctx.time += ctx.seconds_per_beat;
+					last_timing_end = text.data;
+					vec_push(timings, timing);
 					sv_chop_left(&text, 1);
 				}
 				else
