@@ -29,6 +29,12 @@ add_library (cimai SHARED
     "src/parser.c"
 )
 
+# 输出统一带 lib 前缀防止命名冲突
+set_target_properties(cimai PROPERTIES
+    OUTPUT_NAME "cimai"
+    PREFIX "lib"
+)
+
 target_include_directories(cimai
     PUBLIC "include"
 )

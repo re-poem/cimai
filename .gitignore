@@ -367,10 +367,12 @@ FodyWeavers.xsd
 /refs
 
 # built cimai
-cimai.dll
+libcimai.dll
+libcimai.so
+libcimai.dylib
 
 # generate binding rsp
 !generate.rsp
 /bindings/CSharp/Cimai/generated/Cimai.Generator/Cimai.Generators.NativeWrapperGenerator
-/bindings/CSharp/Cimai/runtimes/win-x64/native/cimai.exp
-/bindings/CSharp/Cimai/runtimes/win-x64/native/cimai.lib
+/bindings/CSharp/Cimai/runtimes/win-x64/native/libcimai.exp
+/bindings/CSharp/Cimai/runtimes/win-x64/native/libcimai.lib

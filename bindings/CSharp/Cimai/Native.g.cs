@@ -284,31 +284,31 @@ namespace Cimai.Native
 
     public static unsafe partial class Methods
     {
-        [DllImport("cimai", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [DllImport("libcimai", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
         public static extern void cimai_parse(String_View* text, SimaiFile* file);
 
-        [DllImport("cimai", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [DllImport("libcimai", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
         public static extern void cimai_file_release(SimaiFile* file);
 
-        [DllImport("cimai", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [DllImport("libcimai", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
         public static extern void cimai_parse_chart(SimaiChart* chart);
 
-        [DllImport("cimai", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [DllImport("libcimai", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
         public static extern void cimai_chart_release(SimaiChart* chart);
 
-        [DllImport("cimai", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [DllImport("libcimai", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
         public static extern void cimai_parse_metadata(String_View* text, SimaiFile* file);
 
-        [DllImport("cimai", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [DllImport("libcimai", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
         public static extern void* cimai_malloc([NativeTypeName("size_t")] nuint size);
 
-        [DllImport("cimai", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [DllImport("libcimai", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
         public static extern void* cimai_calloc([NativeTypeName("size_t")] nuint count, [NativeTypeName("size_t")] nuint size);
 
-        [DllImport("cimai", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [DllImport("libcimai", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
         public static extern void* cimai_realloc(void* ptr, [NativeTypeName("size_t")] nuint size);
 
-        [DllImport("cimai", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
+        [DllImport("libcimai", CallingConvention = CallingConvention.Cdecl, ExactSpelling = true)]
         public static extern void cimai_free(void* ptr);
     }
 }

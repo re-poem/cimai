@@ -124,7 +124,7 @@ jobs:
       - name: Verify native output
         run: |
           case "${{ matrix.rid }}" in
-            win-*) library=cimai.dll ;;
+            win-*) library=libcimai.dll ;;
             android-*|linux-*) library=libcimai.so ;;
             *) library=libcimai.dylib ;;
           esac

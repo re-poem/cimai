@@ -33,7 +33,7 @@ Cimai.Native
 -o
 Native.g.cs
 -l
-cimai
+libcimai
 -x
 c
 --define-macro
